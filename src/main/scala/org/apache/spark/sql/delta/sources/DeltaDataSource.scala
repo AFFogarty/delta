@@ -137,7 +137,11 @@ class DeltaDataSource
       sqlContext: SQLContext,
       parameters: Map[String, String]): BaseRelation = {
     val maybePath = parameters.getOrElse("path", {
-      throw DeltaErrors.pathNotSpecifiedException
+      val maybePaths = parameters.getOrElse("paths", {
+        throw DeltaErrors.pathNotSpecifiedException
+      })
+      // Delta does not support loading multiple paths.
+      throw DeltaErrors.multipleLoadPathsException(maybePaths)
     })
 
     // Handle time travel

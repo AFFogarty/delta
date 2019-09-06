@@ -248,7 +248,7 @@ object DeltaErrors
       "policy of your Delta table").initCause(e)
   }
 
-  def multipleLoadPathsException(paths: Seq[String]): Throwable = {
+  def multipleLoadPathsException(paths: String*): Throwable = {
     throw new AnalysisException(
       s"""
         |Delta Lake does not support multiple input paths in the load() API.
