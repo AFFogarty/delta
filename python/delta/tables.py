@@ -37,6 +37,7 @@ class DeltaTable(object):
 
         .. note:: Evolving
     """
+
     def __init__(self, spark, jdt):
         self._spark = spark
         self._jdt = jdt
@@ -259,7 +260,7 @@ class DeltaTable(object):
         :param identifier: Parquet table identifier formatted as "parquet.`path`"
         :type identifier: str
         :param partitionSchema:
-        :param partitionSchema: Hive DDL formatted string, or pyspark.sql.types.StructType
+        :type partitionSchema: Hive DDL formatted string, or pyspark.sql.types.StructType
         :return: DeltaTable representing the converted Delta table
         :rtype: :py:class:`~delta.tables.DeltaTable`
 
@@ -285,6 +286,8 @@ class DeltaTable(object):
 
         :param sparkSession: SparkSession to use for loading the table
         :type sparkSession: pyspark.sql.SparkSession
+        :param path: location of the table
+        :type path: str
         :return: loaded Delta table
         :rtype: :py:class:`~delta.tables.DeltaTable`
 
@@ -307,7 +310,7 @@ class DeltaTable(object):
         is the root of a Delta table using the given SparkSession.
 
         :param sparkSession: SparkSession to use to perform the check
-        :param path: location of the table
+        :param identifier: location of the table
         :return: If the table is a delta table or not
         :rtype: bool
 
@@ -459,6 +462,7 @@ class DeltaMergeBuilder(object):
 
     .. note:: Evolving
     """
+
     def __init__(self, spark, jbuilder):
         self._spark = spark
         self._jbuilder = jbuilder
