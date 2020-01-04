@@ -34,10 +34,10 @@ trait PartitionFiltering {
       DeltaTableUtils.splitMetadataAndDataPredicates(filter, metadata.partitionColumns, spark)._1
     }
 
-    val files = DeltaLog.filterFileList(
-      metadata.partitionSchema,
-      allFiles.toDF(),
-      partitionFilters).as[AddFile].collect()
+    val files = DeltaLog
+      .filterFileList(metadata.partitionSchema, allFiles.toDF(), partitionFilters)
+      .as[AddFile]
+      .collect()
 
     DeltaScan(version = version, files, null, null, null)(null, null, null, null)
   }

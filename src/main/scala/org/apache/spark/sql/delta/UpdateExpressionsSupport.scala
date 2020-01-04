@@ -114,8 +114,9 @@ trait UpdateExpressionsSupport extends CastSupport {
           targetCol.dataType match {
             case StructType(fields) =>
               val fieldExpr = targetCol
-              val childExprs = fields.zipWithIndex.map { case (field, ordinal) =>
-                Alias(GetStructField(fieldExpr, ordinal, Some(field.name)), field.name)()
+              val childExprs = fields.zipWithIndex.map {
+                case (field, ordinal) =>
+                  Alias(GetStructField(fieldExpr, ordinal, Some(field.name)), field.name)()
               }
               // Recursively apply update operations to the children
               val updatedChildExprs = generateUpdateExpressions(
@@ -131,7 +132,8 @@ trait UpdateExpressionsSupport extends CastSupport {
 
             case otherType =>
               throw DeltaErrors.updateNonStructTypeFieldNotSupportedException(
-                (pathPrefix :+ targetCol.name).mkString("."), otherType)
+                (pathPrefix :+ targetCol.name).mkString("."),
+                otherType)
           }
         }
       }

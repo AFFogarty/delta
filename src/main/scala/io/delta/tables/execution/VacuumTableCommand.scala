@@ -35,7 +35,8 @@ case class VacuumTableCommand(
     path: Option[String],
     table: Option[TableIdentifier],
     horizonHours: Option[Double],
-    dryRun: Boolean) extends RunnableCommand {
+    dryRun: Boolean)
+    extends RunnableCommand {
 
   override val output: Seq[Attribute] =
     Seq(AttributeReference("path", StringType, nullable = true)())

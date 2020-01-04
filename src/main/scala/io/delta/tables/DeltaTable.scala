@@ -39,8 +39,8 @@ import org.apache.spark.sql.types.StructType
  * @since 0.3.0
  */
 @Evolving
-class DeltaTable private[tables](df: Dataset[Row], deltaLog: DeltaLog)
-  extends DeltaTableOperations {
+class DeltaTable private[tables] (df: Dataset[Row], deltaLog: DeltaLog)
+    extends DeltaTableOperations {
 
   /**
    * :: Evolving ::
@@ -192,7 +192,6 @@ class DeltaTable private[tables](df: Dataset[Row], deltaLog: DeltaLog)
   def delete(): Unit = {
     executeDelete(None)
   }
-
 
   /**
    * :: Evolving ::
@@ -596,9 +595,7 @@ object DeltaTable {
    * @since 0.4.0
    */
   @Evolving
-  def convertToDelta(
-      spark: SparkSession,
-      identifier: String): DeltaTable = {
+  def convertToDelta(spark: SparkSession, identifier: String): DeltaTable = {
     val tableId: TableIdentifier = spark.sessionState.sqlParser.parseTableIdentifier(identifier)
     DeltaConvert.executeConvert(spark, tableId, None, None)
   }
@@ -632,7 +629,8 @@ object DeltaTable {
   @Evolving
   def forPath(sparkSession: SparkSession, path: String): DeltaTable = {
     if (DeltaTableUtils.isDeltaTable(sparkSession, new Path(path))) {
-      new DeltaTable(sparkSession.read.format("delta").load(path),
+      new DeltaTable(
+        sparkSession.read.format("delta").load(path),
         DeltaLog.forTable(sparkSession, path))
     } else {
       throw DeltaErrors.notADeltaTableException(DeltaTableIdentifier(path = Some(path)))

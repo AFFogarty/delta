@@ -39,6 +39,7 @@ import org.apache.spark.util.{SerializableConfiguration, ThreadUtils}
  * Some utility methods on files, directories, and paths.
  */
 object DeltaFileOperations extends DeltaLogging {
+
   /**
    * Create an absolute path from `child` using the `basePath` if the child is a relative path.
    * Return `child` if it is an absolute path.
@@ -125,7 +126,8 @@ object DeltaFileOperations extends DeltaLogging {
     def list(dir: String, tries: Int): Iterator[SerializableFileStatus] = {
       logInfo(s"Listing $dir")
       try {
-        logStore.listFrom(new Path(dir, "\u0000"))
+        logStore
+          .listFrom(new Path(dir, "\u0000"))
           .filterNot(f => hiddenFileNameFilter(f.getPath.getName))
           .map(SerializableFileStatus.fromStatus)
       } catch {
@@ -157,7 +159,10 @@ object DeltaFileOperations extends DeltaLogging {
     filesAndDirs.flatMap {
       case dir: SerializableFileStatus if dir.isDir =>
         Iterator.single(dir) ++ listUsingLogStore(
-          logStore, Iterator.single(dir.path), recurse = true, hiddenFileNameFilter)
+          logStore,
+          Iterator.single(dir.path),
+          recurse = true,
+          hiddenFileNameFilter)
       case file =>
         Iterator.single(file)
     }
@@ -191,10 +196,13 @@ object DeltaFileOperations extends DeltaLogging {
     import spark.implicits._
     if (subDirs.isEmpty) return spark.emptyDataset[SerializableFileStatus]
     val listParallelism = fileListingParallelism.getOrElse(spark.sparkContext.defaultParallelism)
-    val dirsAndFiles = spark.sparkContext.parallelize(subDirs).mapPartitions { dirs =>
-      val logStore = LogStore(SparkEnv.get.conf, hadoopConf.value.value)
-      listUsingLogStore(logStore, dirs, recurse = false, hiddenFileNameFilter)
-    }.repartition(listParallelism) // Initial list of subDirs may be small
+    val dirsAndFiles = spark.sparkContext
+      .parallelize(subDirs)
+      .mapPartitions { dirs =>
+        val logStore = LogStore(SparkEnv.get.conf, hadoopConf.value.value)
+        listUsingLogStore(logStore, dirs, recurse = false, hiddenFileNameFilter)
+      }
+      .repartition(listParallelism) // Initial list of subDirs may be small
 
     val allDirsAndFiles = dirsAndFiles.mapPartitions { firstLevelDirsAndFiles =>
       val logStore = LogStore(SparkEnv.get.conf, hadoopConf.value.value)
@@ -214,7 +222,8 @@ object DeltaFileOperations extends DeltaLogging {
    * times.
    */
   def tryDeleteNonRecursive(fs: FileSystem, path: Path, tries: Int = 3): Boolean = {
-    try fs.delete(path, false) catch {
+    try fs.delete(path, false)
+    catch {
       case _: FileNotFoundException => true
       case _: IOException => false
       case NonFatal(e) if isThrottlingError(e) && tries > 0 =>
@@ -238,9 +247,7 @@ object DeltaFileOperations extends DeltaLogging {
   }
 
   /** Register a task failure listener to delete a temp file in our best effort. */
-  def registerTempFileDeletionTaskFailureListener(
-      conf: Configuration,
-      tempPath: Path): Unit = {
+  def registerTempFileDeletionTaskFailureListener(conf: Configuration, tempPath: Path): Unit = {
     val tc = TaskContext.get
     if (tc == null) {
       throw new IllegalStateException("Not running on a Spark task thread")
@@ -248,7 +255,7 @@ object DeltaFileOperations extends DeltaLogging {
     tc.addTaskFailureListener { (_, _) =>
       // Best effort to delete the temp file
       try {
-        tempPath.getFileSystem(conf).delete(tempPath, false /* = recursive */)
+        tempPath.getFileSystem(conf).delete(tempPath, false /* = recursive */ )
       } catch {
         case NonFatal(e) =>
           logError(s"Failed to delete $tempPath", e)
@@ -266,22 +273,26 @@ object DeltaFileOperations extends DeltaLogging {
       conf: Configuration,
       partFiles: Seq[FileStatus],
       ignoreCorruptFiles: Boolean): Seq[Footer] = {
-    ThreadUtils.parmap(partFiles, "readingParquetFooters", 8) { currentFile =>
-      try {
-        // Skips row group information since we only need the schema.
-        // ParquetFileReader.readFooter throws RuntimeException, instead of IOException,
-        // when it can't read the footer.
-        Some(new Footer(currentFile.getPath(),
-          ParquetFileReader.readFooter(
-            conf, currentFile, SKIP_ROW_GROUPS)))
-      } catch { case e: RuntimeException =>
-        if (ignoreCorruptFiles) {
-          logWarning(s"Skipped the footer in the corrupted file: $currentFile", e)
-          None
-        } else {
-          throw new IOException(s"Could not read footer for file: $currentFile", e)
+    ThreadUtils
+      .parmap(partFiles, "readingParquetFooters", 8) { currentFile =>
+        try {
+          // Skips row group information since we only need the schema.
+          // ParquetFileReader.readFooter throws RuntimeException, instead of IOException,
+          // when it can't read the footer.
+          Some(
+            new Footer(
+              currentFile.getPath(),
+              ParquetFileReader.readFooter(conf, currentFile, SKIP_ROW_GROUPS)))
+        } catch {
+          case e: RuntimeException =>
+            if (ignoreCorruptFiles) {
+              logWarning(s"Skipped the footer in the corrupted file: $currentFile", e)
+              None
+            } else {
+              throw new IOException(s"Could not read footer for file: $currentFile", e)
+            }
         }
       }
-    }.flatten
+      .flatten
   }
 }

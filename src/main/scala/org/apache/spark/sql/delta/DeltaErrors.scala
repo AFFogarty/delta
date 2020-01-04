@@ -37,6 +37,7 @@ import org.apache.spark.sql.streaming.OutputMode
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
 
 trait DocsPath {
+
   /**
    * The URL for the base path of Delta's docs. When changing this path, ensure that the new path
    * works with the error messages below.
@@ -55,9 +56,7 @@ trait DocsPath {
  * DeltaErrorsSuite so that the doc links that are generated can be verified to work in Azure,
  * docs.databricks.com and docs.delta.io
  */
-object DeltaErrors
-    extends DocsPath
-    with DeltaLogging {
+object DeltaErrors extends DocsPath with DeltaLogging {
 
   def baseDocsPath(spark: SparkSession): String = baseDocsPath(spark.sparkContext.getConf)
 
@@ -102,22 +101,24 @@ object DeltaErrors
   }
 
   def notNullInvariantException(invariant: Invariant): Throwable = {
-    new InvariantViolationException(s"Column ${UnresolvedAttribute(invariant.column).name}" +
-      s", which is defined as ${invariant.rule.name}, is missing from the data being " +
-      s"written into the table.")
+    new InvariantViolationException(
+      s"Column ${UnresolvedAttribute(invariant.column).name}" +
+        s", which is defined as ${invariant.rule.name}, is missing from the data being " +
+        s"written into the table.")
   }
 
   def staticPartitionsNotSupportedException: Throwable = {
-    new AnalysisException("Specifying static partitions in the partition spec is" +
-      " currently not supported during inserts")
+    new AnalysisException(
+      "Specifying static partitions in the partition spec is" +
+        " currently not supported during inserts")
   }
 
-
   def operationNotSupportedException(
-      operation: String, tableIdentifier: TableIdentifier): Throwable = {
+      operation: String,
+      tableIdentifier: TableIdentifier): Throwable = {
     new AnalysisException(
-        s"Operation not allowed: `$operation` is not supported " +
-          s"for Delta tables: $tableIdentifier")
+      s"Operation not allowed: `$operation` is not supported " +
+        s"for Delta tables: $tableIdentifier")
   }
 
   def operationNotSupportedException(operation: String): Throwable = {
@@ -126,8 +127,7 @@ object DeltaErrors
   }
 
   def emptyDataException: Throwable = {
-    new AnalysisException(
-      "Data used in creating the Delta table doesn't have any columns.")
+    new AnalysisException("Data used in creating the Delta table doesn't have any columns.")
   }
 
   def notADeltaTableException(deltaTableIdentifier: DeltaTableIdentifier): Throwable = {
@@ -135,9 +135,11 @@ object DeltaErrors
   }
 
   def notADeltaTableException(
-      operation: String, deltaTableIdentifier: DeltaTableIdentifier): Throwable = {
-    new AnalysisException(s"$deltaTableIdentifier is not a Delta table. " +
-      s"$operation is only supported for Delta tables.")
+      operation: String,
+      deltaTableIdentifier: DeltaTableIdentifier): Throwable = {
+    new AnalysisException(
+      s"$deltaTableIdentifier is not a Delta table. " +
+        s"$operation is only supported for Delta tables.")
   }
 
   def notADeltaTableException(operation: String): Throwable = {
@@ -150,18 +152,18 @@ object DeltaErrors
   }
 
   def missingTableIdentifierException(operationName: String): Throwable = {
-    new AnalysisException(
-      s"Please provide the path or table identifier for $operationName.")
+    new AnalysisException(s"Please provide the path or table identifier for $operationName.")
   }
 
   def alterTableChangeColumnException(oldColumns: String, newColumns: String): Throwable = {
     new AnalysisException(
       "ALTER TABLE CHANGE COLUMN is not supported for changing column " + oldColumns + " to "
-      + newColumns)
+        + newColumns)
   }
 
   def notEnoughColumnsInInsert(table: String, query: Int, target: Int): Throwable = {
-    new AnalysisException(s"Cannot write to '$table', not enough data columns; " +
+    new AnalysisException(
+      s"Cannot write to '$table', not enough data columns; " +
         s"target table has ${target} column(s) but the inserted data has " +
         s"${query} column(s)")
   }
@@ -170,8 +172,7 @@ object DeltaErrors
       oldSchema: StructType,
       newSchema: StructType,
       reason: String): Throwable = {
-    new AnalysisException(
-      s"""Unsupported ALTER TABLE REPLACE COLUMNS operation. Reason: $reason
+    new AnalysisException(s"""Unsupported ALTER TABLE REPLACE COLUMNS operation. Reason: $reason
          |
          |Failed to change schema from:
          |${formatSchema(oldSchema)}
@@ -180,13 +181,15 @@ object DeltaErrors
   }
 
   def unsetNonExistentPropertyException(
-      propertyKey: String, deltaTableIdentifier: DeltaTableIdentifier): Throwable = {
+      propertyKey: String,
+      deltaTableIdentifier: DeltaTableIdentifier): Throwable = {
     new AnalysisException(
       s"Attempted to unset non-existent property '$propertyKey' in table $deltaTableIdentifier")
   }
 
   def ambiguousPartitionColumnException(
-      columnName: String, colMatches: Seq[StructField]): Throwable = {
+      columnName: String,
+      colMatches: Seq[StructField]): Throwable = {
     new AnalysisException(
       s"Ambiguous partition column ${formatColumn(columnName)} can be" +
         s" ${formatColumnList(colMatches.map(_.name))}.")
@@ -203,8 +206,9 @@ object DeltaErrors
   }
 
   def unexpectedDataChangeException(op: String): Throwable = {
-    new AnalysisException(s"Attempting to change metadata when 'dataChange' option is set" +
-      s" to false during $op")
+    new AnalysisException(
+      s"Attempting to change metadata when 'dataChange' option is set" +
+        s" to false during $op")
   }
 
   def unknownConfigurationKeyException(confKey: String): Throwable = {
@@ -212,17 +216,19 @@ object DeltaErrors
   }
 
   def useDeltaOnOtherFormatPathException(
-      operation: String, path: String, spark: SparkSession): Throwable = {
-    new AnalysisException(
-      s"""Incompatible format detected.
+      operation: String,
+      path: String,
+      spark: SparkSession): Throwable = {
+    new AnalysisException(s"""Incompatible format detected.
         |
         |You are trying to $operation `$path` using Delta Lake, but there is no
         |transaction log present. Check the upstream job to make sure that it is writing
         |using format("delta") and that you are trying to $operation the table base path.
         |
         |To disable this check, SET spark.databricks.delta.formatCheck.enabled=false
-        |To learn more about Delta, see ${generateDocsLink(spark.sparkContext.getConf,
-        "/index.html")}
+        |To learn more about Delta, see ${generateDocsLink(
+                               spark.sparkContext.getConf,
+                               "/index.html")}
         |""".stripMargin)
   }
 
@@ -232,8 +238,7 @@ object DeltaErrors
       path: String,
       format: String,
       spark: SparkSession): Throwable = {
-    new AnalysisException(
-      s"""Incompatible format detected.
+    new AnalysisException(s"""Incompatible format detected.
         |
         |A transaction log for Delta Lake was found at `$deltaRootPath/_delta_log`,
         |but you are trying to $operation `$path` using format("$format"). You must use
@@ -257,10 +262,7 @@ object DeltaErrors
     new AnalysisException(s"$path already exists.")
   }
 
-  def logFileNotFoundException(
-      path: Path,
-      version: Long,
-      metadata: Metadata): Throwable = {
+  def logFileNotFoundException(path: Path, version: Long, metadata: Metadata): Throwable = {
     val logRetention = DeltaConfigs.LOG_RETENTION.fromMetaData(metadata)
     val checkpointRetention = DeltaConfigs.CHECKPOINT_RETENTION_DURATION.fromMetaData(metadata)
     new FileNotFoundException(s"$path: Unable to reconstruct state at version $version as the " +
@@ -270,15 +272,15 @@ object DeltaErrors
   }
 
   def logFileNotFoundExceptionForStreamingSource(e: FileNotFoundException): Throwable = {
-    new FileNotFoundException(e.getMessage + " If you never deleted it, it's " +
-      "likely your query is lagging behind. Please delete its checkpoint to restart" +
-      " from scratch. To avoid this happening again, you can update your retention " +
-      "policy of your Delta table").initCause(e)
+    new FileNotFoundException(
+      e.getMessage + " If you never deleted it, it's " +
+        "likely your query is lagging behind. Please delete its checkpoint to restart" +
+        " from scratch. To avoid this happening again, you can update your retention " +
+        "policy of your Delta table").initCause(e)
   }
 
   def multipleLoadPathsException(paths: Seq[String]): Throwable = {
-    throw new AnalysisException(
-      s"""
+    throw new AnalysisException(s"""
         |Delta Lake does not support multiple input paths in the load() API.
         |paths: ${paths.mkString("[", ",", "]")}. To build a single DataFrame by loading
         |multiple paths from the same Delta table, please load the root path of
@@ -300,7 +302,8 @@ object DeltaErrors
   }
 
   def partitionPathInvolvesNonPartitionColumnException(
-      badColumns: Seq[String], fragment: String): Throwable = {
+      badColumns: Seq[String],
+      fragment: String): Throwable = {
 
     new AnalysisException(
       s"Non-partitioning column(s) ${formatColumnList(badColumns)} are specified: $fragment")
@@ -317,14 +320,12 @@ object DeltaErrors
   }
 
   def replaceWhereMismatchException(replaceWhere: String, badPartitions: String): Throwable = {
-    new AnalysisException(
-      s"""Data written out does not match replaceWhere '${replaceWhere}'.
+    new AnalysisException(s"""Data written out does not match replaceWhere '${replaceWhere}'.
          |Invalid data would be written to partitions $badPartitions.""".stripMargin)
   }
 
   def illegalDeltaOptionException(name: String, input: String, explain: String): Throwable = {
-    new IllegalArgumentException(
-      s"Invalid value '$input' for option '$name', $explain")
+    new IllegalArgumentException(s"Invalid value '$input' for option '$name', $explain")
   }
 
   def modifyAppendOnlyTableException: Throwable = {
@@ -336,7 +337,8 @@ object DeltaErrors
 
   def missingPartFilesException(c: CheckpointMetaData, ae: Exception): Throwable = {
     new IllegalStateException(
-      s"Couldn't find all part files of the checkpoint version: ${c.version}", ae)
+      s"Couldn't find all part files of the checkpoint version: ${c.version}",
+      ae)
   }
 
   def deltaVersionsNotContiguousException(deltaVersions: Seq[Long]): Throwable = {
@@ -344,8 +346,7 @@ object DeltaErrors
   }
 
   def schemaChangedException(oldSchema: StructType, newSchema: StructType): Throwable = {
-    new IllegalStateException(
-      s"""Detected schema change:
+    new IllegalStateException(s"""Detected schema change:
         |old schema: ${formatSchema(oldSchema)}
         |
         |new schema: ${formatSchema(newSchema)}
@@ -357,8 +358,7 @@ object DeltaErrors
   }
 
   def streamWriteNullTypeException: Throwable = {
-    new AnalysisException(
-      "Delta doesn't accept NullTypes in the schema for streaming writes.")
+    new AnalysisException("Delta doesn't accept NullTypes in the schema for streaming writes.")
   }
 
   def schemaNotSetException: Throwable = {
@@ -371,8 +371,7 @@ object DeltaErrors
   }
 
   def outputModeNotSupportedException(dataSource: String, outputMode: OutputMode): Throwable = {
-    new AnalysisException(
-      s"Data source $dataSource does not support $outputMode output mode")
+    new AnalysisException(s"Data source $dataSource does not support $outputMode output mode")
   }
 
   def updateSetColumnNotFoundException(col: String, colList: Seq[String]): Throwable = {
@@ -407,7 +406,9 @@ object DeltaErrors
       s"Creating a bloom filer index on a nested column is currently unsupported: $name")
   }
 
-  def bloomFilterOnColumnTypeNotSupportedException(name: String, dataType: DataType): Throwable = {
+  def bloomFilterOnColumnTypeNotSupportedException(
+      name: String,
+      dataType: DataType): Throwable = {
     new AnalysisException(
       "Creating a bloom filter index on a column with type " +
         s"${dataType.catalogString} is unsupported: $name")
@@ -425,13 +426,11 @@ object DeltaErrors
   }
 
   def bloomFilterInvalidParameterValueException(message: String): Throwable = {
-    new AnalysisException(
-      s"Cannot create bloom filter index, invalid parameter value: $message")
+    new AnalysisException(s"Cannot create bloom filter index, invalid parameter value: $message")
   }
 
   def bloomFilterDropOnNonIndexedColumnException(name: String): Throwable = {
-    new AnalysisException(
-      s"Cannot drop bloom filter index on a non indexed column: $name")
+    new AnalysisException(s"Cannot drop bloom filter index on a non indexed column: $name")
   }
 
   def bloomFilterDropOnNonExistingColumnsException(unknownColumns: Seq[String]): Throwable = {
@@ -449,8 +448,7 @@ object DeltaErrors
          |You can preprocess the source table to eliminate the possibility of multiple matches.
          |Please refer to
          |${baseDocsPath(spark)}/delta/delta-update.html#upsert-into-a-table-using-merge
-       """.stripMargin
-    )
+       """.stripMargin)
   }
 
   def subqueryNotSupportedException(op: String, cond: Expression): Throwable = {
@@ -463,8 +461,7 @@ object DeltaErrors
   }
 
   def nestedSubqueryNotSupportedException(operation: String): Throwable = {
-    new AnalysisException(
-      s"Nested subquery is not supported in the $operation condition.")
+    new AnalysisException(s"Nested subquery is not supported in the $operation condition.")
   }
 
   def nestedFieldNotSupported(operation: String, field: String): Throwable = {
@@ -472,8 +469,7 @@ object DeltaErrors
   }
 
   def inSubqueryNotSupportedException(operation: String): Throwable = {
-    new AnalysisException(
-      s"In subquery is not supported in the $operation condition.")
+    new AnalysisException(s"In subquery is not supported in the $operation condition.")
   }
 
   def convertMetastoreMetadataMismatchException(
@@ -486,7 +482,7 @@ object DeltaErrors
       s"""You are trying to convert a table which already has a delta log where the table
          |properties in the catalog don't match the configuration in the delta log.
          |Table properties in catalog: ${prettyMap(tableProperties)}
-         |Delta configuration: ${prettyMap{deltaConfiguration}}
+         |Delta configuration: ${prettyMap { deltaConfiguration }}
          |If you would like to merge the configurations (update existing fields and insert new
          |ones), set the SQL configuration
          |spark.databricks.delta.convert.metadataCheck.enabled to false.
@@ -494,41 +490,46 @@ object DeltaErrors
   }
 
   def createExternalTableWithoutLogException(
-      path: Path, tableName: String, spark: SparkSession): Throwable = {
-    new AnalysisException(
-      s"""
+      path: Path,
+      tableName: String,
+      spark: SparkSession): Throwable = {
+    new AnalysisException(s"""
          |You are trying to create an external table $tableName
          |from `$path` using Delta Lake, but there is no transaction log present at
          |`$path/_delta_log`. Check the upstream job to make sure that it is writing using
          |format("delta") and that the path is the root of the table.
          |
-         |To learn more about Delta, see ${generateDocsLink(spark.sparkContext.getConf,
-        "/index.html")}
+         |To learn more about Delta, see ${generateDocsLink(
+                               spark.sparkContext.getConf,
+                               "/index.html")}
        """.stripMargin)
   }
 
   def createExternalTableWithoutSchemaException(
-      path: Path, tableName: String, spark: SparkSession): Throwable = {
-    new AnalysisException(
-      s"""
+      path: Path,
+      tableName: String,
+      spark: SparkSession): Throwable = {
+    new AnalysisException(s"""
          |You are trying to create an external table $tableName
          |from `$path` using Delta Lake, but the schema is not specified when the
          |input path is empty.
          |
-         |To learn more about Delta, see ${generateDocsLink(spark.sparkContext.getConf,
-        "/index.html")}
+         |To learn more about Delta, see ${generateDocsLink(
+                               spark.sparkContext.getConf,
+                               "/index.html")}
        """.stripMargin)
   }
 
   def createManagedTableWithoutSchemaException(
-      tableName: String, spark: SparkSession): Throwable = {
-    new AnalysisException(
-      s"""
+      tableName: String,
+      spark: SparkSession): Throwable = {
+    new AnalysisException(s"""
          |You are trying to create a managed table $tableName
          |using Delta Lake, but the schema is not specified.
          |
-         |To learn more about Delta, see ${generateDocsLink(spark.sparkContext.getConf,
-        "/index.html")}
+         |To learn more about Delta, see ${generateDocsLink(
+                               spark.sparkContext.getConf,
+                               "/index.html")}
        """.stripMargin)
   }
 
@@ -537,8 +538,7 @@ object DeltaErrors
       specifiedSchema: StructType,
       existingSchema: StructType,
       diffs: Seq[String]): Throwable = {
-    new AnalysisException(
-      s"""The specified schema does not match the existing schema at $path.
+    new AnalysisException(s"""The specified schema does not match the existing schema at $path.
          |
          |== Specified ==
          |${specifiedSchema.treeString}
@@ -627,8 +627,9 @@ object DeltaErrors
   }
 
   def versionNotExistException(userVersion: Long, earliest: Long, latest: Long): Throwable = {
-    throw new AnalysisException(s"Cannot time travel Delta table to version $userVersion. " +
-      s"Available versions: [$earliest, $latest].")
+    throw new AnalysisException(
+      s"Cannot time travel Delta table to version $userVersion. " +
+        s"Available versions: [$earliest, $latest].")
   }
 
   def timeTravelNotSupportedException: Throwable = {
@@ -655,31 +656,38 @@ object DeltaErrors
   }
 
   def missingProviderForConvertException(path: String): Throwable = {
-    new AnalysisException("CONVERT TO DELTA only supports parquet tables. " +
-      s"Please rewrite your target as parquet.`$path` if it's a parquet directory.")
+    new AnalysisException(
+      "CONVERT TO DELTA only supports parquet tables. " +
+        s"Please rewrite your target as parquet.`$path` if it's a parquet directory.")
   }
 
   def convertNonParquetTablesException(ident: TableIdentifier, sourceName: String): Throwable = {
-    new AnalysisException("CONVERT TO DELTA only supports parquet tables, but you are trying to " +
-      s"convert a $sourceName source: $ident")
+    new AnalysisException(
+      "CONVERT TO DELTA only supports parquet tables, but you are trying to " +
+        s"convert a $sourceName source: $ident")
   }
 
   def unexpectedPartitionColumnFromFileNameException(
-      path: String, parsedCol: String, expectedCol: String): Throwable = {
-    new AnalysisException(s"Expecting partition column ${formatColumn(expectedCol)}, but" +
-      s" found partition column ${formatColumn(parsedCol)} from parsing the file name: $path")
+      path: String,
+      parsedCol: String,
+      expectedCol: String): Throwable = {
+    new AnalysisException(
+      s"Expecting partition column ${formatColumn(expectedCol)}, but" +
+        s" found partition column ${formatColumn(parsedCol)} from parsing the file name: $path")
   }
 
   def unexpectedNumPartitionColumnsFromFileNameException(
-      path: String, parsedCols: Seq[String], expectedCols: Seq[String]): Throwable = {
-    new AnalysisException(s"Expecting ${expectedCols.size} partition column(s): " +
-      s"${formatColumnList(expectedCols)}, but found ${parsedCols.size} partition column(s): " +
-      s"${formatColumnList(parsedCols)} from parsing the file name: $path")
+      path: String,
+      parsedCols: Seq[String],
+      expectedCols: Seq[String]): Throwable = {
+    new AnalysisException(
+      s"Expecting ${expectedCols.size} partition column(s): " +
+        s"${formatColumnList(expectedCols)}, but found ${parsedCols.size} partition column(s): " +
+        s"${formatColumnList(parsedCols)} from parsing the file name: $path")
   }
 
   def castPartitionValueException(partitionValue: String, dataType: DataType): Throwable = {
-    new RuntimeException(
-      s"Failed to cast partition value `$partitionValue` to $dataType")
+    new RuntimeException(s"Failed to cast partition value `$partitionValue` to $dataType")
   }
 
   def emptyDirectoryException(directory: String): Throwable = {
@@ -687,9 +695,9 @@ object DeltaErrors
   }
 
   def alterTableSetLocationSchemaMismatchException(
-      original: StructType, destination: StructType): Throwable = {
-    new AnalysisException(
-      s"""
+      original: StructType,
+      destination: StructType): Throwable = {
+    new AnalysisException(s"""
         |The schema of the new Delta location is different than the current table schema.
         |original schema:
         |  ${formatSchema(original)}
@@ -731,15 +739,17 @@ object DeltaErrors
 
 /** The basic class for all Tahoe commit conflict exceptions. */
 abstract class DeltaConcurrentModificationException(message: String)
-  extends ConcurrentModificationException(message) {
+    extends ConcurrentModificationException(message) {
 
-  def this(baseMessage: String, conflictingCommit: Option[CommitInfo]) = this(
-    baseMessage +
-      conflictingCommit.map(ci => s"\nConflicting commit: ${JsonUtils.toJson(ci)}").getOrElse("") +
-      s"\nRefer to " +
-      s"${DeltaErrors.generateDocsLink(SparkEnv.get.conf, "/concurrency-control.html")} " +
-      "for more details."
-  )
+  def this(baseMessage: String, conflictingCommit: Option[CommitInfo]) =
+    this(
+      baseMessage +
+        conflictingCommit
+          .map(ci => s"\nConflicting commit: ${JsonUtils.toJson(ci)}")
+          .getOrElse("") +
+        s"\nRefer to " +
+        s"${DeltaErrors.generateDocsLink(SparkEnv.get.conf, "/concurrency-control.html")} " +
+        "for more details.")
 
   /**
    * Type of the commit conflict.
@@ -751,59 +761,65 @@ abstract class DeltaConcurrentModificationException(message: String)
  * Thrown when a concurrent transaction has written data after the current transaction read the
  * table.
  */
-class ConcurrentWriteException(
-    conflictingCommit: Option[CommitInfo]) extends DeltaConcurrentModificationException(
-  s"A concurrent transaction has written new data since the current transaction " +
-    s"read the table. Please try the operation again.", conflictingCommit)
+class ConcurrentWriteException(conflictingCommit: Option[CommitInfo])
+    extends DeltaConcurrentModificationException(
+      s"A concurrent transaction has written new data since the current transaction " +
+        s"read the table. Please try the operation again.",
+      conflictingCommit)
 
 /**
  * Thrown when the metadata of the Delta table has changed between the time of read
  * and the time of commit.
  */
-class MetadataChangedException(
-    conflictingCommit: Option[CommitInfo]) extends DeltaConcurrentModificationException(
-  "The metadata of the Delta table has been changed by a concurrent update. " +
-    "Please try the operation again.", conflictingCommit)
+class MetadataChangedException(conflictingCommit: Option[CommitInfo])
+    extends DeltaConcurrentModificationException(
+      "The metadata of the Delta table has been changed by a concurrent update. " +
+        "Please try the operation again.",
+      conflictingCommit)
 
 /**
  * Thrown when the protocol version has changed between the time of read
  * and the time of commit.
  */
-class ProtocolChangedException(
-    conflictingCommit: Option[CommitInfo]) extends DeltaConcurrentModificationException(
-  "The protocol version of the Delta table has been changed by a concurrent update. " +
-    "Please try the operation again.", conflictingCommit)
+class ProtocolChangedException(conflictingCommit: Option[CommitInfo])
+    extends DeltaConcurrentModificationException(
+      "The protocol version of the Delta table has been changed by a concurrent update. " +
+        "Please try the operation again.",
+      conflictingCommit)
 
 /** Thrown when files are added that would have been read by the current transaction. */
 class ConcurrentAppendException(
     conflictingCommit: Option[CommitInfo],
     partition: String,
-    customRetryMsg: Option[String] = None) extends DeltaConcurrentModificationException(
-  s"Files were added to $partition by a concurrent update. " +
-    customRetryMsg.getOrElse("Please try the operation again."), conflictingCommit)
+    customRetryMsg: Option[String] = None)
+    extends DeltaConcurrentModificationException(
+      s"Files were added to $partition by a concurrent update. " +
+        customRetryMsg.getOrElse("Please try the operation again."),
+      conflictingCommit)
 
 /** Thrown when the current transaction reads data that was deleted by a concurrent transaction. */
-class ConcurrentDeleteReadException(
-    conflictingCommit: Option[CommitInfo],
-    file: String) extends DeltaConcurrentModificationException(
-  s"This transaction attempted to read one or more files that were deleted (for example $file) " +
-    "by a concurrent update. Please try the operation again.", conflictingCommit)
+class ConcurrentDeleteReadException(conflictingCommit: Option[CommitInfo], file: String)
+    extends DeltaConcurrentModificationException(
+      s"This transaction attempted to read one or more files that were deleted (for example $file) " +
+        "by a concurrent update. Please try the operation again.",
+      conflictingCommit)
 
 /**
  * Thrown when the current transaction deletes data that was deleted by a concurrent transaction.
  */
-class ConcurrentDeleteDeleteException(
-    conflictingCommit: Option[CommitInfo],
-    file: String) extends DeltaConcurrentModificationException(
-  s"This transaction attempted to delete one or more files that were deleted (for example $file) " +
-    "by a concurrent update. Please try the operation again.", conflictingCommit)
+class ConcurrentDeleteDeleteException(conflictingCommit: Option[CommitInfo], file: String)
+    extends DeltaConcurrentModificationException(
+      s"This transaction attempted to delete one or more files that were deleted (for example $file) " +
+        "by a concurrent update. Please try the operation again.",
+      conflictingCommit)
 
 /** Thrown when concurrent transaction both attempt to update the same idempotent transaction. */
-class ConcurrentTransactionException(
-    conflictingCommit: Option[CommitInfo]) extends DeltaConcurrentModificationException(
-  s"This error occurs when multiple streaming queries are using the same checkpoint to write " +
-    "into this table. Did you run multiple instances of the same streaming query at the same " +
-    "time?", conflictingCommit)
+class ConcurrentTransactionException(conflictingCommit: Option[CommitInfo])
+    extends DeltaConcurrentModificationException(
+      s"This error occurs when multiple streaming queries are using the same checkpoint to write " +
+        "into this table. Did you run multiple instances of the same streaming query at the same " +
+        "time?",
+      conflictingCommit)
 
 /** A helper class in building a helpful error message in case of metadata mismatches. */
 class MetadataMismatchErrorBuilder {

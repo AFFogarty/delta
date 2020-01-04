@@ -103,7 +103,8 @@ trait VerifyChecksum extends DeltaLogging {
     val checksumFile = FileNames.checksumFile(logPath, version)
 
     var exception: Option[String] = None
-    val content = try Some(store.read(checksumFile)) catch {
+    val content = try Some(store.read(checksumFile))
+    catch {
       case NonFatal(e) =>
         // We expect FileNotFoundException; if it's another kind of exception, we still catch them
         // here but we log them in the checksum error event below.
@@ -127,10 +128,7 @@ trait VerifyChecksum extends DeltaLogging {
     }
     val checksumData = content.get
     if (checksumData.isEmpty) {
-      recordDeltaEvent(
-        this,
-        "delta.checksum.error.empty",
-        data = Map("version" -> version))
+      recordDeltaEvent(this, "delta.checksum.error.empty", data = Map("version" -> version))
       return
     }
     var mismatchStringOpt: Option[String] = None
@@ -160,8 +158,7 @@ trait VerifyChecksum extends DeltaLogging {
         throw new IllegalStateException(
           "The transaction log has failed integrity checks. We recommend you contact " +
             s"Databricks support for assistance. To disable this check, set ${conf.key} to " +
-            s"false. Failed verification of:\n${mismatchStringOpt.get}"
-        )
+            s"false. Failed verification of:\n${mismatchStringOpt.get}")
       }
     }
   }

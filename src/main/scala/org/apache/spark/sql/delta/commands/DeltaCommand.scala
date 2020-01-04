@@ -32,6 +32,7 @@ import org.apache.spark.sql.execution.datasources.HadoopFsRelation
  * Helper trait for all delta commands.
  */
 trait DeltaCommand extends DeltaLogging {
+
   /**
    * Converts string predicates into [[Expression]]s relative to a transaction.
    *
@@ -44,7 +45,9 @@ trait DeltaCommand extends DeltaLogging {
       spark.sessionState.sqlParser.parseExpression(predicate) :: Nil
     } catch {
       case e: ParseException =>
-        throw new AnalysisException(s"Cannot recognize the predicate '$predicate'", cause = Some(e))
+        throw new AnalysisException(
+          s"Cannot recognize the predicate '$predicate'",
+          cause = Some(e))
     }
   }
 
@@ -78,9 +81,11 @@ trait DeltaCommand extends DeltaLogging {
   protected def generateCandidateFileMap(
       basePath: Path,
       candidateFiles: Seq[AddFile]): Map[String, AddFile] = {
-    val nameToAddFileMap = candidateFiles.map(add =>
-      DeltaFileOperations.absolutePath(basePath.toString, add.path).toString -> add).toMap
-    assert(nameToAddFileMap.size == candidateFiles.length,
+    val nameToAddFileMap = candidateFiles
+      .map(add => DeltaFileOperations.absolutePath(basePath.toString, add.path).toString -> add)
+      .toMap
+    assert(
+      nameToAddFileMap.size == candidateFiles.length,
       s"File name collisions found among:\n${candidateFiles.map(_.path).mkString("\n")}")
     nameToAddFileMap
   }
@@ -120,8 +125,8 @@ trait DeltaCommand extends DeltaLogging {
       nameToAddFileMap: Map[String, AddFile]): HadoopFsRelation = {
     val deltaLog = txn.deltaLog
     val scannedFiles = inputLeafFiles.map(f => getTouchedFile(rootPath, f, nameToAddFileMap))
-    val fileIndex = new TahoeBatchFileIndex(
-      spark, actionType, scannedFiles, deltaLog, rootPath, txn.snapshot)
+    val fileIndex =
+      new TahoeBatchFileIndex(spark, actionType, scannedFiles, deltaLog, rootPath, txn.snapshot)
     HadoopFsRelation(
       fileIndex,
       partitionSchema = txn.metadata.partitionSchema,
@@ -142,10 +147,13 @@ trait DeltaCommand extends DeltaLogging {
       basePath: Path,
       filePath: String,
       nameToAddFileMap: Map[String, AddFile]): AddFile = {
-    val absolutePath = DeltaFileOperations.absolutePath(basePath.toUri.toString, filePath).toString
-    nameToAddFileMap.getOrElse(absolutePath, {
-      throw new IllegalStateException(s"File ($absolutePath) to be rewritten not found " +
-        s"among candidate files:\n${nameToAddFileMap.keys.mkString("\n")}")
-    })
+    val absolutePath =
+      DeltaFileOperations.absolutePath(basePath.toUri.toString, filePath).toString
+    nameToAddFileMap.getOrElse(
+      absolutePath, {
+        throw new IllegalStateException(
+          s"File ($absolutePath) to be rewritten not found " +
+            s"among candidate files:\n${nameToAddFileMap.keys.mkString("\n")}")
+      })
   }
 }

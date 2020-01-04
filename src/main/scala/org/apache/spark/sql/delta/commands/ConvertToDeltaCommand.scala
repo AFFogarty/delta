@@ -67,25 +67,28 @@ import org.apache.spark.util.{SerializableConfiguration, Utils}
 abstract class ConvertToDeltaCommandBase(
     tableIdentifier: TableIdentifier,
     partitionSchema: Option[StructType],
-    deltaPath: Option[String]) extends RunnableCommand with DeltaCommand {
+    deltaPath: Option[String])
+    extends RunnableCommand
+    with DeltaCommand {
 
-  lazy val partitionColNames : Seq[String] = partitionSchema.map(_.fieldNames.toSeq).getOrElse(Nil)
-  lazy val partitionFields : Seq[StructField] = partitionSchema.map(_.fields.toSeq).getOrElse(Nil)
+  lazy val partitionColNames: Seq[String] = partitionSchema.map(_.fieldNames.toSeq).getOrElse(Nil)
+  lazy val partitionFields: Seq[StructField] = partitionSchema.map(_.fields.toSeq).getOrElse(Nil)
   val timestampPartitionPattern = "yyyy-MM-dd HH:mm:ss[.S]"
 
   override def run(spark: SparkSession): Seq[Row] = {
     val convertProperties = getConvertProperties(spark, tableIdentifier)
 
     convertProperties.provider match {
-      case Some(providerName) => providerName.toLowerCase(Locale.ROOT) match {
-        // Make convert to delta idempotent
-        case delta if DeltaSourceUtils.isDeltaDataSourceName(delta) =>
-          logConsole("The table you are trying to convert is already a delta table")
-          return Seq.empty[Row]
-        case checkProvider if checkProvider != "parquet" =>
-          throw DeltaErrors.convertNonParquetTablesException(tableIdentifier, checkProvider)
-        case _ =>
-      }
+      case Some(providerName) =>
+        providerName.toLowerCase(Locale.ROOT) match {
+          // Make convert to delta idempotent
+          case delta if DeltaSourceUtils.isDeltaDataSourceName(delta) =>
+            logConsole("The table you are trying to convert is already a delta table")
+            return Seq.empty[Row]
+          case checkProvider if checkProvider != "parquet" =>
+            throw DeltaErrors.convertNonParquetTablesException(tableIdentifier, checkProvider)
+          case _ =>
+        }
       case None =>
         throw DeltaErrors.missingProviderForConvertException(convertProperties.targetDir)
     }
@@ -124,73 +127,69 @@ abstract class ConvertToDeltaCommandBase(
       convertProperties: ConvertProperties): Seq[Row] =
     recordDeltaOperation(txn.deltaLog, "delta.convert") {
 
-    val targetPath = new Path(convertProperties.targetDir)
-    val sessionHadoopConf = spark.sessionState.newHadoopConf()
-    val fs = targetPath.getFileSystem(sessionHadoopConf)
-    val qualifiedPath = fs.makeQualified(targetPath)
-    val qualifiedDir = qualifiedPath.toString
-    if (!fs.exists(qualifiedPath)) {
-      throw DeltaErrors.pathNotExistsException(qualifiedDir)
+      val targetPath = new Path(convertProperties.targetDir)
+      val sessionHadoopConf = spark.sessionState.newHadoopConf()
+      val fs = targetPath.getFileSystem(sessionHadoopConf)
+      val qualifiedPath = fs.makeQualified(targetPath)
+      val qualifiedDir = qualifiedPath.toString
+      if (!fs.exists(qualifiedPath)) {
+        throw DeltaErrors.pathNotExistsException(qualifiedDir)
+      }
+      txn.deltaLog.ensureLogDirectoryExist()
+
+      val conf = spark.sparkContext.broadcast(
+        new SerializableConfiguration(spark.sessionState.newHadoopConf()))
+
+      val fileListResultDf =
+        DeltaFileOperations.recursiveListDirs(spark, Seq(qualifiedDir), conf).where("!isDir")
+      fileListResultDf.cache()
+      def fileListResult = fileListResultDf.toLocalIterator()
+
+      try {
+        if (!fileListResult.hasNext) {
+          throw DeltaErrors.emptyDirectoryException(qualifiedDir)
+        }
+
+        val schemaBatchSize =
+          spark.sessionState.conf.getConf(DeltaSQLConf.DELTA_IMPORT_BATCH_SIZE_SCHEMA_INFERENCE)
+        var dataSchema: StructType = StructType(Seq())
+        var numFiles = 0L
+        fileListResult.asScala.grouped(schemaBatchSize).foreach { batch =>
+          numFiles += batch.size
+          // Obtain a union schema from all files.
+          // Here we explicitly mark the inferred schema nullable. This also means we don't currently
+          // support specifying non-nullable columns after the table conversion.
+          val batchSchema =
+            recordDeltaOperation(txn.deltaLog, "delta.convert.schemaInference") {
+              mergeSchemasInParallel(spark, batch.map(_.toFileStatus))
+                .getOrElse(throw new RuntimeException(
+                  "Failed to infer schema from the given list of files."))
+            }.asNullable
+          dataSchema = SchemaUtils.mergeSchemas(dataSchema, batchSchema)
+        }
+
+        val schema = constructTableSchema(spark, dataSchema, partitionFields)
+        val metadata = Metadata(schemaString = schema.json, partitionColumns = partitionColNames)
+        txn.updateMetadata(metadata)
+
+        val statsBatchSize =
+          spark.sessionState.conf.getConf(DeltaSQLConf.DELTA_IMPORT_BATCH_SIZE_STATS_COLLECTION)
+
+        val addFilesIter = fileListResult.asScala.grouped(statsBatchSize).flatMap { batch =>
+          val adds =
+            batch.map(createAddFile(_, txn.deltaLog.dataPath, fs, spark.sessionState.conf))
+          adds.toIterator
+        }
+        streamWrite(
+          spark,
+          txn,
+          addFilesIter,
+          DeltaOperations.Convert(numFiles, partitionColNames, collectStats = false, None))
+      } finally {
+        fileListResultDf.unpersist()
+      }
+      Seq.empty[Row]
     }
-    txn.deltaLog.ensureLogDirectoryExist()
-
-    val conf = spark.sparkContext.broadcast(
-      new SerializableConfiguration(spark.sessionState.newHadoopConf()))
-
-
-    val fileListResultDf = DeltaFileOperations.recursiveListDirs(
-        spark, Seq(qualifiedDir), conf).where("!isDir")
-    fileListResultDf.cache()
-    def fileListResult = fileListResultDf.toLocalIterator()
-
-    try {
-      if (!fileListResult.hasNext) {
-        throw DeltaErrors.emptyDirectoryException(qualifiedDir)
-      }
-
-      val schemaBatchSize =
-        spark.sessionState.conf.getConf(DeltaSQLConf.DELTA_IMPORT_BATCH_SIZE_SCHEMA_INFERENCE)
-      var dataSchema: StructType = StructType(Seq())
-      var numFiles = 0L
-      fileListResult.asScala.grouped(schemaBatchSize).foreach { batch =>
-        numFiles += batch.size
-        // Obtain a union schema from all files.
-        // Here we explicitly mark the inferred schema nullable. This also means we don't currently
-        // support specifying non-nullable columns after the table conversion.
-        val batchSchema =
-          recordDeltaOperation(txn.deltaLog, "delta.convert.schemaInference") {
-            mergeSchemasInParallel(spark, batch.map(_.toFileStatus))
-              .getOrElse(
-                throw new RuntimeException("Failed to infer schema from the given list of files."))
-          }.asNullable
-        dataSchema = SchemaUtils.mergeSchemas(dataSchema, batchSchema)
-      }
-
-      val schema = constructTableSchema(spark, dataSchema, partitionFields)
-      val metadata = Metadata(schemaString = schema.json, partitionColumns = partitionColNames)
-      txn.updateMetadata(metadata)
-
-      val statsBatchSize =
-        spark.sessionState.conf.getConf(DeltaSQLConf.DELTA_IMPORT_BATCH_SIZE_STATS_COLLECTION)
-
-      val addFilesIter = fileListResult.asScala.grouped(statsBatchSize).flatMap { batch =>
-        val adds = batch.map(createAddFile(_, txn.deltaLog.dataPath, fs, spark.sessionState.conf))
-        adds.toIterator
-      }
-      streamWrite(
-        spark,
-        txn,
-        addFilesIter,
-        DeltaOperations.Convert(
-          numFiles,
-          partitionColNames,
-          collectStats = false,
-          None))
-    } finally {
-      fileListResultDf.unpersist()
-    }
-    Seq.empty[Row]
-  }
 
   protected def createAddFile(
       file: SerializableFileStatus,
@@ -213,45 +212,53 @@ abstract class ConvertToDeltaCommandBase(
       dateFormatter,
       timestampFormatter)
 
-    val partition = partitionOpt.map { partValues =>
-      if (partitionColNames.size != partValues.columnNames.size) {
-        throw DeltaErrors.unexpectedNumPartitionColumnsFromFileNameException(
-          pathStr, partValues.columnNames, partitionColNames)
-      }
-
-      val tz = Option(conf.sessionLocalTimeZone)
-      // Check if the partition value can be casted to the provided type
-      partValues.literals.zip(partitionFields).foreach { case (literal, field) =>
-        if (literal.eval() != null && Cast(literal, field.dataType, tz).eval() == null) {
-          val partitionValue = Cast(literal, StringType, tz).eval()
-          val partitionValueStr = Option(partitionValue).map(_.toString).orNull
-          throw DeltaErrors.castPartitionValueException(partitionValueStr, field.dataType)
+    val partition = partitionOpt
+      .map { partValues =>
+        if (partitionColNames.size != partValues.columnNames.size) {
+          throw DeltaErrors.unexpectedNumPartitionColumnsFromFileNameException(
+            pathStr,
+            partValues.columnNames,
+            partitionColNames)
         }
-      }
 
-      val values = partValues
-        .literals
-        .map(l => Cast(l, StringType, tz).eval())
-        .map(Option(_).map(_.toString).orNull)
-
-      partitionColNames.zip(partValues.columnNames).foreach { case (expected, parsed) =>
-        if (!resolver(expected, parsed)) {
-          throw DeltaErrors.unexpectedPartitionColumnFromFileNameException(
-            pathStr, parsed, expected)
+        val tz = Option(conf.sessionLocalTimeZone)
+        // Check if the partition value can be casted to the provided type
+        partValues.literals.zip(partitionFields).foreach {
+          case (literal, field) =>
+            if (literal.eval() != null && Cast(literal, field.dataType, tz).eval() == null) {
+              val partitionValue = Cast(literal, StringType, tz).eval()
+              val partitionValueStr = Option(partitionValue).map(_.toString).orNull
+              throw DeltaErrors.castPartitionValueException(partitionValueStr, field.dataType)
+            }
         }
+
+        val values = partValues.literals
+          .map(l => Cast(l, StringType, tz).eval())
+          .map(Option(_).map(_.toString).orNull)
+
+        partitionColNames.zip(partValues.columnNames).foreach {
+          case (expected, parsed) =>
+            if (!resolver(expected, parsed)) {
+              throw DeltaErrors
+                .unexpectedPartitionColumnFromFileNameException(pathStr, parsed, expected)
+            }
+        }
+        partitionColNames.zip(values).toMap
       }
-      partitionColNames.zip(values).toMap
-    }.getOrElse {
-      if (partitionColNames.nonEmpty) {
-        throw DeltaErrors.unexpectedNumPartitionColumnsFromFileNameException(
-          pathStr, Seq.empty, partitionColNames)
+      .getOrElse {
+        if (partitionColNames.nonEmpty) {
+          throw DeltaErrors.unexpectedNumPartitionColumnsFromFileNameException(
+            pathStr,
+            Seq.empty,
+            partitionColNames)
+        }
+        Map[String, String]()
       }
-      Map[String, String]()
-    }
 
     val pathStrForAddFile = if (deltaPath.isEmpty) {
       val relativePath = DeltaFileOperations.tryRelativizePath(fs, basePath, path)
-      assert(!relativePath.isAbsolute,
+      assert(
+        !relativePath.isAbsolute,
         s"Fail to relativize path $path against base path $basePath.")
       relativePath.toUri.toString
     } else {
@@ -289,8 +296,9 @@ abstract class ConvertToDeltaCommandBase(
       }
     }
 
-    StructType(dataSchema.map(f => overlappedPartCols.getOrElse(getColName(f), f)) ++
-      partitionFields.filterNot(f => overlappedPartCols.contains(getColName(f))))
+    StructType(
+      dataSchema.map(f => overlappedPartCols.getOrElse(getColName(f), f)) ++
+        partitionFields.filterNot(f => overlappedPartCols.contains(getColName(f))))
   }
 
   protected def getContext: Map[String, String] = {
@@ -379,7 +387,8 @@ abstract class ConvertToDeltaCommandBase(
    *     S3 nodes).
    */
   protected def mergeSchemasInParallel(
-      sparkSession: SparkSession, filesToTouch: Seq[FileStatus]): Option[StructType] = {
+      sparkSession: SparkSession,
+      filesToTouch: Seq[FileStatus]): Option[StructType] = {
     val assumeBinaryIsString = sparkSession.sessionState.conf.isParquetBinaryAsString
     val assumeInt96IsTimestamp = sparkSession.sessionState.conf.isParquetINT96AsTimestamp
     val serializedConf = new SerializableConfiguration(sparkSession.sessionState.newHadoopConf())
@@ -399,26 +408,29 @@ abstract class ConvertToDeltaCommandBase(
 
     // Set the number of partitions to prevent following schema reads from generating many tasks
     // in case of a small number of parquet files.
-    val numParallelism = Math.min(Math.max(partialFileStatusInfo.size, 1),
+    val numParallelism = Math.min(
+      Math.max(partialFileStatusInfo.size, 1),
       sparkSession.sparkContext.defaultParallelism)
 
     val ignoreCorruptFiles = sparkSession.sessionState.conf.ignoreCorruptFiles
 
     // Issues a Spark job to read Parquet schema in parallel.
     val partiallyMergedSchemas =
-      sparkSession
-        .sparkContext
+      sparkSession.sparkContext
         .parallelize(partialFileStatusInfo, numParallelism)
         .mapPartitions { iterator =>
           // Resembles fake `FileStatus`es with serialized path and length information.
-          val fakeFileStatuses = iterator.map { case (path, length) =>
-            new FileStatus(length, false, 0, 0, 0, 0, null, null, null, new Path(path))
+          val fakeFileStatuses = iterator.map {
+            case (path, length) =>
+              new FileStatus(length, false, 0, 0, 0, 0, null, null, null, new Path(path))
           }.toSeq
 
           // Reads footers in multi-threaded manner within each task
           val footers =
             DeltaFileOperations.readParquetFootersInParallel(
-              serializedConf.value, fakeFileStatuses, ignoreCorruptFiles)
+              serializedConf.value,
+              fakeFileStatuses,
+              ignoreCorruptFiles)
 
           // Converter used to convert Parquet `MessageType` to Spark SQL `StructType`
           val converter = new ParquetToSparkSchemaConverter(
@@ -432,14 +444,17 @@ abstract class ConvertToDeltaCommandBase(
               val schema = ParquetFileFormat.readSchemaFromFooter(footer, converter)
               try {
                 mergedSchema = SchemaUtils.mergeSchemas(mergedSchema, schema)
-              } catch { case cause: AnalysisException =>
-                throw new SparkException(
-                  s"Failed to merge schema of file ${footer.getFile}:\n${schema.treeString}", cause)
+              } catch {
+                case cause: AnalysisException =>
+                  throw new SparkException(
+                    s"Failed to merge schema of file ${footer.getFile}:\n${schema.treeString}",
+                    cause)
               }
             }
             Iterator.single(mergedSchema)
           }
-        }.collect()
+        }
+        .collect()
 
     if (partiallyMergedSchemas.isEmpty) {
       None
@@ -463,4 +478,4 @@ case class ConvertToDeltaCommand(
     tableIdentifier: TableIdentifier,
     partitionSchema: Option[StructType],
     deltaPath: Option[String])
-  extends ConvertToDeltaCommandBase(tableIdentifier, partitionSchema, deltaPath)
+    extends ConvertToDeltaCommandBase(tableIdentifier, partitionSchema, deltaPath)

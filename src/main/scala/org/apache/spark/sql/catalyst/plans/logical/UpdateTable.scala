@@ -33,7 +33,7 @@ case class UpdateTable(
     updateColumns: Seq[Attribute],
     updateExpressions: Seq[Expression],
     condition: Option[Expression])
-  extends UnaryNode {
+    extends UnaryNode {
 
   assert(updateColumns.size == updateExpressions.size)
 
@@ -89,7 +89,9 @@ object UpdateTable {
 
     def fail(extraMsg: String): Nothing = {
       throw new AnalysisException(
-        s"$errMsg - $extraMsg", errNode.origin.line, errNode.origin.startPosition)
+        s"$errMsg - $extraMsg",
+        errNode.origin.line,
+        errNode.origin.startPosition)
     }
 
     def extractRecursively(expr: Expression): Seq[String] = expr match {

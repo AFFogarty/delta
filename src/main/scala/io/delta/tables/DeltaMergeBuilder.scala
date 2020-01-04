@@ -118,13 +118,13 @@ import org.apache.spark.sql.functions.expr
  * @since 0.3.0
  */
 @Evolving
-class DeltaMergeBuilder private(
+class DeltaMergeBuilder private (
     private val targetTable: DeltaTable,
     private val source: DataFrame,
     private val onCondition: Column,
     private val whenClauses: Seq[MergeIntoClause])
-  extends AnalysisHelper
-  with DeltaLogging {
+    extends AnalysisHelper
+    with DeltaLogging {
 
   /**
    * :: Evolving ::
@@ -243,7 +243,10 @@ class DeltaMergeBuilder private(
   @Unstable
   private[delta] def withClause(clause: MergeIntoClause): DeltaMergeBuilder = {
     new DeltaMergeBuilder(
-      this.targetTable, this.source, this.onCondition, this.whenClauses :+ clause)
+      this.targetTable,
+      this.source,
+      this.onCondition,
+      this.whenClauses :+ clause)
   }
 
   private def mergePlan: MergeInto = {
@@ -256,6 +259,7 @@ class DeltaMergeBuilder private(
 }
 
 object DeltaMergeBuilder {
+
   /**
    * :: Unstable ::
    *
@@ -281,7 +285,7 @@ object DeltaMergeBuilder {
  * @since 0.3.0
  */
 @Evolving
-class DeltaMergeMatchedActionBuilder private(
+class DeltaMergeMatchedActionBuilder private (
     private val mergeBuilder: DeltaMergeBuilder,
     private val matchCondition: Option[Column]) {
 
@@ -350,9 +354,8 @@ class DeltaMergeMatchedActionBuilder private(
    */
   @Evolving
   def updateAll(): DeltaMergeBuilder = {
-    val updateClause = MergeIntoUpdateClause(
-      matchCondition.map(_.expr),
-      MergeIntoClause.toActions(Nil, Nil))
+    val updateClause =
+      MergeIntoUpdateClause(matchCondition.map(_.expr), MergeIntoClause.toActions(Nil, Nil))
     mergeBuilder.withClause(updateClause)
   }
 
@@ -383,6 +386,7 @@ class DeltaMergeMatchedActionBuilder private(
 }
 
 object DeltaMergeMatchedActionBuilder {
+
   /**
    * :: Unstable ::
    *
@@ -396,7 +400,6 @@ object DeltaMergeMatchedActionBuilder {
   }
 }
 
-
 /**
  * :: Evolving ::
  *
@@ -409,7 +412,7 @@ object DeltaMergeMatchedActionBuilder {
  * @since 0.3.0
  */
 @Evolving
-class DeltaMergeNotMatchedActionBuilder private(
+class DeltaMergeNotMatchedActionBuilder private (
     private val mergeBuilder: DeltaMergeBuilder,
     private val notMatchCondition: Option[Column]) {
 
@@ -479,9 +482,8 @@ class DeltaMergeNotMatchedActionBuilder private(
    */
   @Evolving
   def insertAll(): DeltaMergeBuilder = {
-    val insertClause = MergeIntoInsertClause(
-      notMatchCondition.map(_.expr),
-      MergeIntoClause.toActions(Nil, Nil))
+    val insertClause =
+      MergeIntoInsertClause(notMatchCondition.map(_.expr), MergeIntoClause.toActions(Nil, Nil))
     mergeBuilder.withClause(insertClause)
   }
 
@@ -501,6 +503,7 @@ class DeltaMergeNotMatchedActionBuilder private(
 }
 
 object DeltaMergeNotMatchedActionBuilder {
+
   /**
    * :: Unstable ::
    *

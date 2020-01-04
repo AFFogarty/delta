@@ -60,7 +60,7 @@ object DeltaFullTable {
       } else if (index.versionToUse.nonEmpty) {
         throw new AnalysisException(
           s"Expect a full scan of the latest version of the Delta source, but found a historical " +
-          s"scan of version ${index.versionToUse.get}")
+            s"scan of version ${index.versionToUse.get}")
       } else {
         throw new AnalysisException(
           s"Expect a full scan of Delta sources, but found a partial scan. path:${index.path}")
@@ -70,8 +70,7 @@ object DeltaFullTable {
   }
 }
 
-object DeltaTableUtils extends PredicateHelper
-  with DeltaLogging {
+object DeltaTableUtils extends PredicateHelper with DeltaLogging {
 
   /** Check whether this table is a Delta table based on information from the Catalog. */
   def isDeltaTable(table: CatalogTable): Boolean = DeltaSourceUtils.isDeltaTable(table.provider)
@@ -84,7 +83,7 @@ object DeltaTableUtils extends PredicateHelper
     val tableIsNotTemporaryTable = !catalog.isTemporaryTable(tableName)
     val tableExists =
       (tableName.database.isEmpty || catalog.databaseExists(tableName.database.get)) &&
-      catalog.tableExists(tableName)
+        catalog.tableExists(tableName)
     tableIsNotTemporaryTable && tableExists && isDeltaTable(catalog.getTableMetadata(tableName))
   }
 
@@ -127,7 +126,7 @@ object DeltaTableUtils extends PredicateHelper
     val fs = path.getFileSystem(spark.sessionState.newHadoopConfWithOptions(options))
     var currentPath = path
     while (currentPath != null && currentPath.getName() != "_delta_log" &&
-        currentPath.getName() != "_samples") {
+           currentPath.getName() != "_samples") {
       val deltaLogPath = new Path(currentPath, "_delta_log")
       if (Try(fs.exists(deltaLogPath)).getOrElse(false)) {
         return Option(currentPath)
@@ -143,14 +142,16 @@ object DeltaTableUtils extends PredicateHelper
     // GCed even if they'd normally be hidden. The _db_index directory contains (bloom filter)
     // indexes and these must be GCed when the data they are tied to is GCed.
     (pathName.startsWith(".") || pathName.startsWith("_")) &&
-      !pathName.startsWith("_delta_index") &&
-      !partitionColumnNames.exists(c => pathName.startsWith(c ++ "="))
+    !pathName.startsWith("_delta_index") &&
+    !partitionColumnNames.exists(c => pathName.startsWith(c ++ "="))
   }
 
   /**
    * Enrich the metadata received from the catalog on Delta tables with the Delta table metadata.
    */
-  def combineWithCatalogMetadata(sparkSession: SparkSession, table: CatalogTable): CatalogTable = {
+  def combineWithCatalogMetadata(
+      sparkSession: SparkSession,
+      table: CatalogTable): CatalogTable = {
     val deltaLog = DeltaLog.forTable(sparkSession, new Path(table.location))
     val metadata = deltaLog.snapshot.metadata
     table.copy(schema = metadata.schema, partitionColumnNames = metadata.partitionColumns)
@@ -198,7 +199,7 @@ object DeltaTableUtils extends PredicateHelper
       partitionColumns: Seq[String],
       spark: SparkSession): Boolean = {
     isPredicatePartitionColumnsOnly(condition, partitionColumns, spark) &&
-      !containsSubquery(condition)
+    !containsSubquery(condition)
   }
 
   /**
@@ -211,15 +212,12 @@ object DeltaTableUtils extends PredicateHelper
    * @param target the logical plan in which we replace the file index
    * @param fileIndex the new file index
    */
-  def replaceFileIndex(
-      target: LogicalPlan,
-      fileIndex: FileIndex): LogicalPlan = {
+  def replaceFileIndex(target: LogicalPlan, fileIndex: FileIndex): LogicalPlan = {
     target transform {
       case l @ LogicalRelation(hfsr: HadoopFsRelation, _, _, _) =>
         l.copy(relation = hfsr.copy(location = fileIndex)(hfsr.sparkSession))
     }
   }
-
 
   /**
    * Check if the given path contains time travel syntax with the `@`. If the path genuinely exists,

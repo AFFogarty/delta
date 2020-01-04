@@ -69,16 +69,13 @@ case object WriteSerializable extends IsolationLevel
  */
 case object SnapshotIsolation extends IsolationLevel
 
-
 object IsolationLevel {
 
   val DEFAULT = WriteSerializable
 
   /** All possible isolation levels in descending order of guarantees provided */
-  val allLevelsInDescOrder: Seq[IsolationLevel] = Seq(
-    Serializable,
-    WriteSerializable,
-    SnapshotIsolation)
+  val allLevelsInDescOrder: Seq[IsolationLevel] =
+    Seq(Serializable, WriteSerializable, SnapshotIsolation)
 
   /** All the valid isolation levels that can be specified as the table isolation level */
   val validTableIsolationLevels = Set[IsolationLevel](Serializable, WriteSerializable)

@@ -66,8 +66,9 @@ trait ImplicitMetadataOperation extends DeltaLogging {
     def isNewSchema: Boolean = txn.metadata.schema != mergedSchema
     // We need to make sure that the partitioning order and naming is consistent
     // if provided. Otherwise we follow existing partitioning
-    def isNewPartitioning: Boolean = normalizedPartitionCols.nonEmpty &&
-      txn.metadata.partitionColumns != normalizedPartitionCols
+    def isNewPartitioning: Boolean =
+      normalizedPartitionCols.nonEmpty &&
+        txn.metadata.partitionColumns != normalizedPartitionCols
     PartitionUtils.validatePartitionColumn(
       mergedSchema,
       normalizedPartitionCols,
@@ -90,14 +91,13 @@ trait ImplicitMetadataOperation extends DeltaLogging {
           configuration = configuration))
     } else if (isOverwriteMode && canOverwriteSchema && (isNewSchema || isNewPartitioning)) {
       // Can define new partitioning in overwrite mode
-      val newMetadata = txn.metadata.copy(
-        schemaString = dataSchema.json,
-        partitionColumns = normalizedPartitionCols
-      )
+      val newMetadata = txn.metadata
+        .copy(schemaString = dataSchema.json, partitionColumns = normalizedPartitionCols)
       recordDeltaEvent(txn.deltaLog, "delta.ddl.overwriteSchema")
       if (rearrangeOnly) {
-        throw DeltaErrors.unexpectedDataChangeException("Overwrite the Delta table schema or " +
-          "change the partition schema")
+        throw DeltaErrors.unexpectedDataChangeException(
+          "Overwrite the Delta table schema or " +
+            "change the partition schema")
       }
       txn.updateMetadata(newMetadata)
     } else if (isNewSchema && canMergeSchema && !isNewPartitioning) {
@@ -114,7 +114,9 @@ trait ImplicitMetadataOperation extends DeltaLogging {
         errorBuilder.addSchemaMismatch(txn.metadata.schema, dataSchema)
       }
       if (isNewPartitioning) {
-        errorBuilder.addPartitioningMismatch(txn.metadata.partitionColumns, normalizedPartitionCols)
+        errorBuilder.addPartitioningMismatch(
+          txn.metadata.partitionColumns,
+          normalizedPartitionCols)
       }
       if (isOverwriteMode) {
         errorBuilder.addOverwriteBit()

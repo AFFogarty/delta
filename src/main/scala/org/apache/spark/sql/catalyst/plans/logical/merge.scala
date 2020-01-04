@@ -31,7 +31,8 @@ import org.apache.spark.sql.types.DataType
  * @param expr Expression to generate the value of the target column.
  */
 case class MergeAction(targetColNameParts: Seq[String], expr: Expression)
-  extends UnaryExpression with Unevaluable {
+    extends UnaryExpression
+    with Unevaluable {
   override def child: Expression = expr
   override def foldable: Boolean = false
   override def dataType: DataType = expr.dataType
@@ -39,12 +40,12 @@ case class MergeAction(targetColNameParts: Seq[String], expr: Expression)
   override def toString: String = s"$prettyName ( $sql )"
 }
 
-
 /**
  * Trait that represents a WHEN clause in MERGE. See [[MergeInto]]. It extends [[Expression]]
  * so that Catalyst can find all the expressions in the clause implementations.
  */
 sealed trait MergeIntoClause extends Expression with Unevaluable {
+
   /** Optional condition of the clause */
   def condition: Option[Expression]
 
@@ -67,10 +68,16 @@ sealed trait MergeIntoClause extends Expression with Unevaluable {
   def clauseType: String = getClass.getSimpleName.replace("MergeInto", "").replace("Clause", "")
 
   override def toString: String = {
-    val condStr = condition.map { c => s"condition: ${c.sql}" }.getOrElse("")
-    val actionStr = if (actions.isEmpty) "" else {
-      "actions: " + actions.map(_.sql).mkString(", ")
-    }
+    val condStr = condition
+      .map { c =>
+        s"condition: ${c.sql}"
+      }
+      .getOrElse("")
+    val actionStr =
+      if (actions.isEmpty) ""
+      else {
+        "actions: " + actions.map(_.sql).mkString(", ")
+      }
     s"$clauseType [${Seq(condStr, actionStr).mkString(", ")}]"
   }
 
@@ -87,8 +94,8 @@ sealed trait MergeIntoClause extends Expression with Unevaluable {
   }
 }
 
-
 object MergeIntoClause {
+
   /**
    * Convert the parsed columns names and expressions into action for MergeInto. Note:
    * - Size of column names and expressions must be the same.
@@ -115,7 +122,7 @@ sealed trait MergeIntoMatchedClause extends MergeIntoClause
 
 /** Represents the clause WHEN MATCHED THEN UPDATE in MERGE. See [[MergeInto]]. */
 case class MergeIntoUpdateClause(condition: Option[Expression], actions: Seq[Expression])
-  extends MergeIntoMatchedClause {
+    extends MergeIntoMatchedClause {
 
   def this(cond: Option[Expression], cols: Seq[UnresolvedAttribute], exprs: Seq[Expression]) =
     this(cond, MergeIntoClause.toActions(cols, exprs))
@@ -130,7 +137,7 @@ case class MergeIntoDeleteClause(condition: Option[Expression]) extends MergeInt
 
 /** Represents the clause WHEN NOT MATCHED THEN INSERT in MERGE. See [[MergeInto]]. */
 case class MergeIntoInsertClause(condition: Option[Expression], actions: Seq[Expression])
-  extends MergeIntoClause {
+    extends MergeIntoClause {
 
   def this(cond: Option[Expression], cols: Seq[UnresolvedAttribute], exprs: Seq[Expression]) =
     this(cond, MergeIntoClause.toActions(cols, exprs))
@@ -172,7 +179,8 @@ case class MergeInto(
     source: LogicalPlan,
     condition: Expression,
     matchedClauses: Seq[MergeIntoMatchedClause],
-    notMatchedClause: Option[MergeIntoInsertClause]) extends Command {
+    notMatchedClause: Option[MergeIntoInsertClause])
+    extends Command {
 
   (matchedClauses ++ notMatchedClause).foreach(_.verifyActions())
 
@@ -197,9 +205,10 @@ object MergeInto {
     }
 
     if (matchedClauses.length == 2 &&
-      matchedClauses.apply(0).condition.isEmpty) {
-      throw new AnalysisException("When there are 2 MATCHED clauses in a MERGE query, " +
-        "the first MATCHED clause must have a condition")
+        matchedClauses.apply(0).condition.isEmpty) {
+      throw new AnalysisException(
+        "When there are 2 MATCHED clauses in a MERGE query, " +
+          "the first MATCHED clause must have a condition")
     }
 
     if (matchedClauses.length > 2) {
@@ -207,10 +216,11 @@ object MergeInto {
     }
 
     if (updateClauses.length >= 2 ||
-      deleteClauses.length >= 2 ||
-      insertClauses.length >= 2) {
-      throw new AnalysisException("INSERT, UPDATE and DELETE cannot appear twice in " +
-        "one MERGE query")
+        deleteClauses.length >= 2 ||
+        insertClauses.length >= 2) {
+      throw new AnalysisException(
+        "INSERT, UPDATE and DELETE cannot appear twice in " +
+          "one MERGE query")
     }
 
     MergeInto(
@@ -239,7 +249,10 @@ object MergeInto {
      * Resolves expression with given plan or fail using given message. It makes a best-effort
      * attempt to throw specific error messages on which part of the query has a problem.
      */
-    def resolveOrFail(expr: Expression, plan: LogicalPlan, mergeClauseType: String): Expression = {
+    def resolveOrFail(
+        expr: Expression,
+        plan: LogicalPlan,
+        mergeClauseType: String): Expression = {
       val resolvedExpr = resolveExpr(expr, plan)
       resolvedExpr.flatMap(_.references).filter(!_.resolved).foreach { a =>
         // Note: This will throw error only on unresolved attribute issues,
@@ -266,14 +279,14 @@ object MergeInto {
             // plan.
             fakeTargetPlan.output.map(_.name).map { tgtColName =>
               val resolvedExpr = resolveOrFail(
-                  UnresolvedAttribute.quotedString(s"`$tgtColName`"),
-                  fakeSourcePlan, s"$typ clause")
+                UnresolvedAttribute.quotedString(s"`$tgtColName`"),
+                fakeSourcePlan,
+                s"$typ clause")
               MergeAction(Seq(tgtColName), resolvedExpr)
             }
 
           // For actions like `UPDATE SET x = a, y = b` or `INSERT (x, y) VALUES (a, b)`
           case MergeAction(colNameParts, expr) =>
-
             val unresolvedAttrib = UnresolvedAttribute(colNameParts)
             val resolutionErrorMsg =
               s"Cannot resolve ${unresolvedAttrib.sql} in target columns in $typ " +

@@ -32,10 +32,8 @@ import org.apache.spark.sql.types.StructType
 /**
  * A [[FileIndex]] that generates the list of files managed by the Tahoe protocol.
  */
-abstract class TahoeFileIndex(
-    val spark: SparkSession,
-    val deltaLog: DeltaLog,
-    val path: Path) extends FileIndex {
+abstract class TahoeFileIndex(val spark: SparkSession, val deltaLog: DeltaLog, val path: Path)
+    extends FileIndex {
 
   def tableVersion: Long = deltaLog.snapshot.version
 
@@ -53,25 +51,27 @@ abstract class TahoeFileIndex(
       partitionFilters: Seq[Expression],
       dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
     val timeZone = spark.sessionState.conf.sessionLocalTimeZone
-    matchingFiles(partitionFilters, dataFilters).groupBy(_.partitionValues).map {
-      case (partitionValues, files) =>
-        val rowValues: Array[Any] = partitionSchema.map { p =>
-          Cast(Literal(partitionValues(p.name)), p.dataType, Option(timeZone)).eval()
-        }.toArray
+    matchingFiles(partitionFilters, dataFilters)
+      .groupBy(_.partitionValues)
+      .map {
+        case (partitionValues, files) =>
+          val rowValues: Array[Any] = partitionSchema.map { p =>
+            Cast(Literal(partitionValues(p.name)), p.dataType, Option(timeZone)).eval()
+          }.toArray
 
+          val fileStats = files.map { f =>
+            new FileStatus(
+              /* length */ f.size,
+              /* isDir */ false,
+              /* blockReplication */ 0,
+              /* blockSize */ 1,
+              /* modificationTime */ f.modificationTime,
+              absolutePath(f.path))
+          }.toArray
 
-        val fileStats = files.map { f =>
-          new FileStatus(
-            /* length */ f.size,
-            /* isDir */ false,
-            /* blockReplication */ 0,
-            /* blockSize */ 1,
-            /* modificationTime */ f.modificationTime,
-            absolutePath(f.path))
-        }.toArray
-
-        PartitionDirectory(new GenericInternalRow(rowValues), fileStats)
-    }.toSeq
+          PartitionDirectory(new GenericInternalRow(rowValues), fileStats)
+      }
+      .toSeq
   }
 
   override def partitionSchema: StructType = deltaLog.snapshot.metadata.partitionSchema
@@ -105,7 +105,6 @@ abstract class TahoeFileIndex(
   }
 }
 
-
 /**
  * A [[TahoeFileIndex]] that generates the list of files from DeltaLog with given partition filters.
  */
@@ -115,7 +114,7 @@ case class TahoeLogFileIndex(
     override val path: Path,
     partitionFilters: Seq[Expression] = Nil,
     versionToUse: Option[Long] = None)
-  extends TahoeFileIndex(spark, deltaLog, path) {
+    extends TahoeFileIndex(spark, deltaLog, path) {
 
   override def tableVersion: Long = versionToUse.getOrElse(deltaLog.snapshot.version)
 
@@ -130,13 +129,20 @@ case class TahoeLogFileIndex(
       partitionFilters: Seq[Expression],
       dataFilters: Seq[Expression],
       keepStats: Boolean = false): Seq[AddFile] = {
-    getSnapshot(stalenessAcceptable = false).filesForScan(
-      projection = Nil, this.partitionFilters ++ partitionFilters ++ dataFilters, keepStats).files
+    getSnapshot(stalenessAcceptable = false)
+      .filesForScan(
+        projection = Nil,
+        this.partitionFilters ++ partitionFilters ++ dataFilters,
+        keepStats)
+      .files
   }
 
   override def inputFiles: Array[String] = {
-    getSnapshot(stalenessAcceptable = false).filesForScan(
-      projection = Nil, partitionFilters).files.map(f => absolutePath(f.path).toString).toArray
+    getSnapshot(stalenessAcceptable = false)
+      .filesForScan(projection = Nil, partitionFilters)
+      .files
+      .map(f => absolutePath(f.path).toString)
+      .toArray
   }
 
   override def refresh(): Unit = {}
@@ -153,8 +159,10 @@ case class TahoeLogFileIndex(
     31 * path.hashCode() + partitionFilters.hashCode()
   }
 
-  override def partitionSchema: StructType = historicalSnapshotOpt.map(_.metadata.partitionSchema)
-    .getOrElse(super.partitionSchema)
+  override def partitionSchema: StructType =
+    historicalSnapshotOpt
+      .map(_.metadata.partitionSchema)
+      .getOrElse(super.partitionSchema)
 }
 
 /**
@@ -168,7 +176,7 @@ class TahoeBatchFileIndex(
     deltaLog: DeltaLog,
     path: Path,
     snapshot: Snapshot)
-  extends TahoeFileIndex(spark, deltaLog, path) {
+    extends TahoeFileIndex(spark, deltaLog, path) {
 
   override def tableVersion: Long = snapshot.version
 
@@ -176,9 +184,11 @@ class TahoeBatchFileIndex(
       partitionFilters: Seq[Expression],
       dataFilters: Seq[Expression],
       keepStats: Boolean = false): Seq[AddFile] = {
-    DeltaLog.filterFileList(
-      snapshot.metadata.partitionSchema,
-      spark.createDataset(addFiles)(addFileEncoder).toDF(), partitionFilters)
+    DeltaLog
+      .filterFileList(
+        snapshot.metadata.partitionSchema,
+        spark.createDataset(addFiles)(addFileEncoder).toDF(),
+        partitionFilters)
       .as[AddFile](addFileEncoder)
       .collect()
   }

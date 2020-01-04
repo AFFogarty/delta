@@ -39,19 +39,18 @@ import org.apache.spark.sql.types.StructType
 
 /** A DataSource V1 for integrating Delta into Spark SQL batch and Streaming APIs. */
 class DeltaDataSource
-  extends RelationProvider
-  with StreamSourceProvider
-  with StreamSinkProvider
-  with CreatableRelationProvider
-  with DataSourceRegister
-  with DeltaLogging {
+    extends RelationProvider
+    with StreamSourceProvider
+    with StreamSinkProvider
+    with CreatableRelationProvider
+    with DataSourceRegister
+    with DeltaLogging {
 
   SparkSession.getActiveSession.foreach { spark =>
     // Enable "passPartitionByAsOptions" to support "write.partitionBy(...)"
     // TODO Remove this when upgrading to Spark 3.0.0
     spark.conf.set("spark.sql.legacy.sources.write.passPartitionByAsOptions", "true")
   }
-
 
   override def sourceSchema(
       sqlContext: SQLContext,
@@ -65,8 +64,8 @@ class DeltaDataSource
       throw DeltaErrors.pathNotSpecifiedException
     })
 
-    val maybeTimeTravel = DeltaTableUtils.extractIfPathContainsTimeTravel(
-      sqlContext.sparkSession, path)
+    val maybeTimeTravel =
+      DeltaTableUtils.extractIfPathContainsTimeTravel(sqlContext.sparkSession, path)
     if (maybeTimeTravel.isDefined) throw DeltaErrors.timeTravelNotSupportedException
 
     val deltaLog = DeltaLog.forTable(sqlContext.sparkSession, path)
@@ -119,7 +118,8 @@ class DeltaDataSource
     val path = parameters.getOrElse("path", {
       throw DeltaErrors.pathNotSpecifiedException
     })
-    val partitionColumns = parameters.get(DeltaSourceUtils.PARTITIONING_COLUMNS_KEY)
+    val partitionColumns = parameters
+      .get(DeltaSourceUtils.PARTITIONING_COLUMNS_KEY)
       .map(DeltaDataSource.decodePartitioningColumns)
       .getOrElse(Nil)
 
@@ -157,7 +157,8 @@ class DeltaDataSource
     }
 
     val hadoopPath = new Path(path)
-    val rootPath = DeltaTableUtils.findDeltaTableRoot(sqlContext.sparkSession, hadoopPath)
+    val rootPath = DeltaTableUtils
+      .findDeltaTableRoot(sqlContext.sparkSession, hadoopPath)
       .getOrElse {
         val fs = hadoopPath.getFileSystem(sqlContext.sparkSession.sessionState.newHadoopConf())
         if (!fs.exists(hadoopPath)) {
@@ -169,8 +170,7 @@ class DeltaDataSource
     val deltaLog = DeltaLog.forTable(sqlContext.sparkSession, rootPath)
 
     val partitionFilters = if (rootPath != hadoopPath) {
-      logConsole(
-        """
+      logConsole("""
           |WARNING: loading partitions directly with delta is not recommended.
           |If you are trying to read a specific partition, use a where predicate.
           |
@@ -194,12 +194,13 @@ class DeltaDataSource
         throw DeltaErrors.partitionPathInvolvesNonPartitionColumnException(badColumns, fragment)
       }
 
-      val filters = partitions.map { case (key, value) =>
-        // Nested fields cannot be partitions, so we pass the key as a identifier
-        EqualTo(UnresolvedAttribute(Seq(key)), Literal(value))
+      val filters = partitions.map {
+        case (key, value) =>
+          // Nested fields cannot be partitions, so we pass the key as a identifier
+          EqualTo(UnresolvedAttribute(Seq(key)), Literal(value))
       }
-      val files = DeltaLog.filterFileList(
-        metadata.partitionSchema, snapshot.allFiles.toDF(), filters)
+      val files =
+        DeltaLog.filterFileList(metadata.partitionSchema, snapshot.allFiles.toDF(), filters)
       if (files.count() == 0) {
         throw DeltaErrors.pathNotExistsException(path)
       }
@@ -216,7 +217,8 @@ class DeltaDataSource
   }
 
   /** Extracts whether users provided the option to time travel a relation. */
-  private def getTimeTravelVersion(parameters: Map[String, String]): Option[DeltaTimeTravelSpec] = {
+  private def getTimeTravelVersion(
+      parameters: Map[String, String]): Option[DeltaTimeTravelSpec] = {
     val caseInsensitive = CaseInsensitiveMap[String](parameters)
     val tsOpt = caseInsensitive.get(DeltaDataSource.TIME_TRAVEL_TIMESTAMP_KEY)
     val versionOpt = caseInsensitive.get(DeltaDataSource.TIME_TRAVEL_VERSION_KEY)
@@ -225,12 +227,15 @@ class DeltaDataSource
     if (tsOpt.isDefined && versionOpt.isDefined) {
       throw DeltaErrors.provideOneOfInTimeTravel
     } else if (tsOpt.isDefined) {
-      Some(DeltaTimeTravelSpec(Some(Literal(tsOpt.get)), None, sourceOpt.orElse(Some("dfReader"))))
+      Some(
+        DeltaTimeTravelSpec(Some(Literal(tsOpt.get)), None, sourceOpt.orElse(Some("dfReader"))))
     } else if (versionOpt.isDefined) {
       val version = Try(versionOpt.get.toLong) match {
         case Success(v) => v
-        case Failure(t) => throw new IllegalArgumentException(
-          s"${DeltaDataSource.TIME_TRAVEL_VERSION_KEY} needs to be a valid bigint value.", t)
+        case Failure(t) =>
+          throw new IllegalArgumentException(
+            s"${DeltaDataSource.TIME_TRAVEL_VERSION_KEY} needs to be a valid bigint value.",
+            t)
       }
       Some(DeltaTimeTravelSpec(None, Some(version), sourceOpt.orElse(Some("dfReader"))))
     } else {

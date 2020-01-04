@@ -90,7 +90,8 @@ trait TransactionalWrite extends DeltaLogging { self: OptimisticTransactionImpl 
       colsDropped: Boolean): Seq[Attribute] = {
     val partitionColumns: Seq[Attribute] = partitionSchema.map { col =>
       // schema is already normalized, therefore we can do an equality check
-      output.find(f => f.name == col.name)
+      output
+        .find(f => f.name == col.name)
         .getOrElse {
           throw DeltaErrors.partitionColumnNotFoundException(col.name, output)
         }
@@ -132,10 +133,7 @@ trait TransactionalWrite extends DeltaLogging { self: OptimisticTransactionImpl 
     val invariants = Invariants.getFromSchema(metadata.schema, spark)
 
     SQLExecution.withNewExecutionId(spark, queryExecution) {
-      val outputSpec = FileFormatWriter.OutputSpec(
-        outputPath.toString,
-        Map.empty,
-        output)
+      val outputSpec = FileFormatWriter.OutputSpec(outputPath.toString, Map.empty, output)
 
       val physicalPlan = DeltaInvariantCheckerExec(queryExecution.executedPlan, invariants)
 

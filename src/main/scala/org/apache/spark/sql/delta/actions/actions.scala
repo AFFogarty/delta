@@ -31,15 +31,17 @@ import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
 import org.apache.spark.sql.types.{DataType, StructType}
 
 /** Thrown when the protocol version of a table is greater than supported by this client. */
-class InvalidProtocolVersionException extends RuntimeException(
-    "Delta protocol version is too new for this version of the Databricks Runtime. " +
-    "Please upgrade to a newer release.")
+class InvalidProtocolVersionException
+    extends RuntimeException(
+      "Delta protocol version is too new for this version of the Databricks Runtime. " +
+        "Please upgrade to a newer release.")
 
 class ProtocolDowngradeException(oldProtocol: Protocol, newProtocol: Protocol)
-  extends RuntimeException(
-    s"Protocol version cannot be downgraded from $oldProtocol to $newProtocol")
+    extends RuntimeException(
+      s"Protocol version cannot be downgraded from $oldProtocol to $newProtocol")
 
 object Action {
+
   /** The maximum version of the protocol that this version of Delta understands. */
   val readerVersion = 1
   val writerVersion = 2
@@ -74,7 +76,8 @@ sealed trait Action {
  */
 case class Protocol(
     minReaderVersion: Int = Action.readerVersion,
-    minWriterVersion: Int = Action.writerVersion) extends Action {
+    minWriterVersion: Int = Action.writerVersion)
+    extends Action {
   override def wrap: SingleAction = SingleAction(protocol = this)
   @JsonIgnore
   def simpleString: String = s"($minReaderVersion,$minWriterVersion)"
@@ -88,7 +91,8 @@ case class SetTransaction(
     appId: String,
     version: Long,
     @JsonDeserialize(contentAs = classOf[java.lang.Long])
-    lastUpdated: Option[Long]) extends Action {
+    lastUpdated: Option[Long])
+    extends Action {
   override def wrap: SingleAction = SingleAction(txn = this)
 }
 
@@ -114,7 +118,8 @@ case class AddFile(
     dataChange: Boolean,
     @JsonRawValue
     stats: String = null,
-    tags: Map[String, String] = null) extends FileAction {
+    tags: Map[String, String] = null)
+    extends FileAction {
   require(path.nonEmpty)
 
   override def wrap: SingleAction = SingleAction(add = this)
@@ -131,6 +136,7 @@ case class AddFile(
 }
 
 object AddFile {
+
   /**
    * Misc file-level metadata.
    *
@@ -163,7 +169,8 @@ case class RemoveFile(
     path: String,
     @JsonDeserialize(contentAs = classOf[java.lang.Long])
     deletionTimestamp: Option[Long],
-    dataChange: Boolean = true) extends FileAction {
+    dataChange: Boolean = true)
+    extends FileAction {
   override def wrap: SingleAction = SingleAction(remove = this)
 
   @JsonIgnore
@@ -171,9 +178,7 @@ case class RemoveFile(
 }
 // scalastyle:on
 
-case class Format(
-    provider: String = "parquet",
-    options: Map[String, String] = Map.empty)
+case class Format(provider: String = "parquet", options: Map[String, String] = Map.empty)
 
 /**
  * Updates the metadata of the table. Only the last update to the [[Metadata]]
@@ -189,7 +194,8 @@ case class Metadata(
     partitionColumns: Seq[String] = Nil,
     configuration: Map[String, String] = Map.empty,
     @JsonDeserialize(contentAs = classOf[java.lang.Long])
-    createdTime: Option[Long] = Some(System.currentTimeMillis())) extends Action {
+    createdTime: Option[Long] = Some(System.currentTimeMillis()))
+    extends Action {
 
   // The `schema` and `partitionSchema` methods should be vals or lazy vals, NOT
   // defs, because parsing StructTypes from JSON is extremely expensive and has
@@ -198,9 +204,11 @@ case class Metadata(
   /** Returns the schema as a [[StructType]] */
   @JsonIgnore
   lazy val schema: StructType =
-    Option(schemaString).map { s =>
-      DataType.fromJson(s).asInstanceOf[StructType]
-    }.getOrElse(StructType.apply(Nil))
+    Option(schemaString)
+      .map { s =>
+        DataType.fromJson(s).asInstanceOf[StructType]
+      }
+      .getOrElse(StructType.apply(Nil))
 
   /** Returns the partitionSchema as a [[StructType]] */
   @JsonIgnore
@@ -223,10 +231,13 @@ case class Metadata(
  * `lastModifiedTime`, and can be adjusted for clock skew. Hence we have the method `withTimestamp`.
  */
 trait CommitMarker {
+
   /** Get the timestamp of the commit as millis after the epoch. */
   def getTimestamp: Long
+
   /** Return a copy object of this object with the given timestamp. */
   def withTimestamp(timestamp: Long): CommitMarker
+
   /** Get the version of the commit. */
   def getVersion: Long
 }
@@ -255,7 +266,9 @@ case class CommitInfo(
     isolationLevel: Option[String],
     /** Whether this commit has blindly appended without caring about existing files */
     isBlindAppend: Option[Boolean],
-    operationMetrics: Option[Map[String, String]]) extends Action with CommitMarker {
+    operationMetrics: Option[Map[String, String]])
+    extends Action
+    with CommitMarker {
   override def wrap: SingleAction = SingleAction(commitInfo = this)
 
   override def withTimestamp(timestamp: Long): CommitInfo = {
@@ -291,7 +304,9 @@ case class NotebookInfo(notebookId: String)
 
 object NotebookInfo {
   def fromContext(context: Map[String, String]): Option[NotebookInfo] = {
-    context.get("notebookId").map { nbId => NotebookInfo(nbId) }
+    context.get("notebookId").map { nbId =>
+      NotebookInfo(nbId)
+    }
   }
 }
 
@@ -327,8 +342,7 @@ object CommitInfo {
       readVersion,
       isolationLevel,
       isBlindAppend,
-      operationMetrics
-    )
+      operationMetrics)
   }
 }
 
@@ -389,14 +403,15 @@ class JsonMapSerializer extends JsonSerializer[Map[String, String]] {
       jgen: JsonGenerator,
       provider: SerializerProvider): Unit = {
     jgen.writeStartObject()
-    parameters.foreach { case (key, value) =>
-      if (value == null) {
-        jgen.writeNullField(key)
-      } else {
-        jgen.writeFieldName(key)
-        // Write value as raw data, since it's already JSON text
-        jgen.writeRawValue(value)
-      }
+    parameters.foreach {
+      case (key, value) =>
+        if (value == null) {
+          jgen.writeNullField(key)
+        } else {
+          jgen.writeFieldName(key)
+          // Write value as raw data, since it's already JSON text
+          jgen.writeRawValue(value)
+        }
     }
     jgen.writeEndObject()
   }

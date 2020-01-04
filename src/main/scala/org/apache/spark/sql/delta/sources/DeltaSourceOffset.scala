@@ -46,7 +46,8 @@ case class DeltaSourceOffset(
     reservoirId: String,
     reservoirVersion: Long,
     index: Long,
-    isStartingVersion: Boolean) extends Offset {
+    isStartingVersion: Boolean)
+    extends Offset {
 
   override def json: String = JsonUtils.toJson(this)
 }
@@ -71,7 +72,8 @@ object DeltaSourceOffset {
         validateSourceVersion(s.json)
         val o = JsonUtils.mapper.readValue[DeltaSourceOffset](s.json)
         if (o.reservoirId != reservoirId) {
-          throw new IllegalStateException(s"Delta table ${o.reservoirId} doesn't exist. " +
+          throw new IllegalStateException(
+            s"Delta table ${o.reservoirId} doesn't exist. " +
               s"Please delete your streaming query checkpoint and restart.")
         }
         o
@@ -90,7 +92,7 @@ object DeltaSourceOffset {
     if (versionOpt.get > VERSION) {
       throw new IllegalStateException(
         s"Unsupported format. Expected version is $VERSION " +
-            s"but was ${versionOpt.get}. Please upgrade your Spark.")
+          s"but was ${versionOpt.get}. Please upgrade your Spark.")
     }
   }
 

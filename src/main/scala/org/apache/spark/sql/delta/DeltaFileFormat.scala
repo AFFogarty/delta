@@ -20,6 +20,7 @@ import org.apache.spark.sql.execution.datasources.FileFormat
 import org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat
 
 trait DeltaFileFormat {
+
   /** Return the underlying Spark `FileFormat` of the Delta table. */
   def fileFormat: FileFormat = new ParquetFileFormat()
 }

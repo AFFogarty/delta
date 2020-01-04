@@ -50,9 +50,9 @@ sealed trait DateFormatter extends Serializable {
   def format(days: Int): String
 }
 
-class Iso8601DateFormatter(
-    pattern: String,
-    locale: Locale) extends DateFormatter with DateTimeFormatterHelper {
+class Iso8601DateFormatter(pattern: String, locale: Locale)
+    extends DateFormatter
+    with DateTimeFormatterHelper {
 
   @transient
   private lazy val formatter = getOrCreateFormatter(pattern, locale)

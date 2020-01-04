@@ -96,8 +96,7 @@ trait LogStore {
   def isPartialWriteVisible(path: Path): Boolean = true
 }
 
-object LogStore extends LogStoreProvider
-  with Logging {
+object LogStore extends LogStoreProvider with Logging {
 
   def apply(sc: SparkContext): LogStore = {
     apply(sc.getConf, sc.hadoopConfiguration)
@@ -120,7 +119,9 @@ trait LogStoreProvider {
   def createLogStore(sparkConf: SparkConf, hadoopConf: Configuration): LogStore = {
     val logStoreClassName = sparkConf.get(logStoreClassConfKey, defaultLogStoreClass)
     val logStoreClass = Utils.classForName(logStoreClassName)
-    logStoreClass.getConstructor(classOf[SparkConf], classOf[Configuration])
-      .newInstance(sparkConf, hadoopConf).asInstanceOf[LogStore]
+    logStoreClass
+      .getConstructor(classOf[SparkConf], classOf[Configuration])
+      .newInstance(sparkConf, hadoopConf)
+      .asInstanceOf[LogStore]
   }
 }

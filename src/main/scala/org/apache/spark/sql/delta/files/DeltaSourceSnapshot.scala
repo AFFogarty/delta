@@ -36,8 +36,8 @@ class DeltaSourceSnapshot(
     val spark: SparkSession,
     val snapshot: Snapshot,
     val filters: Seq[Expression])
-  extends SnapshotIterator
-  with StateCache {
+    extends SnapshotIterator
+    with StateCache {
 
   protected val version = snapshot.version
   protected val path = snapshot.path
@@ -53,8 +53,10 @@ class DeltaSourceSnapshot(
     import spark.implicits._
 
     cacheDS(
-      snapshot.allFiles.sort("modificationTime", "path")
-        .rdd.zipWithIndex()
+      snapshot.allFiles
+        .sort("modificationTime", "path")
+        .rdd
+        .zipWithIndex()
         .toDF("add", "index")
         .withColumn("version", lit(version))
         .withColumn("isLast", lit(false))
@@ -79,11 +81,15 @@ trait SnapshotIterator {
   def iterator(): Iterator[IndexedFile] = {
     import spark.implicits._
     if (result == null) {
-      result = DeltaLog.filterFileList(
-        snapshot.metadata.partitionSchema,
-        initialFiles.toDF(),
-        partitionFilters,
-        Seq("add")).as[IndexedFile].collect().toIterable
+      result = DeltaLog
+        .filterFileList(
+          snapshot.metadata.partitionSchema,
+          initialFiles.toDF(),
+          partitionFilters,
+          Seq("add"))
+        .as[IndexedFile]
+        .collect()
+        .toIterable
     }
     // This will always start from the beginning and re-use resources. If any exceptions were to
     // be thrown, the stream would stop, we would call stop on the source, and that will make
@@ -91,5 +97,5 @@ trait SnapshotIterator {
     result.toIterator
   }
 
-  def close(unpersistSnapshot: Boolean): Unit = { }
+  def close(unpersistSnapshot: Boolean): Unit = {}
 }

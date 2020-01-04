@@ -26,9 +26,9 @@ import org.apache.spark.sql.catalyst.expressions.codegen.Block._
 import org.apache.spark.sql.types.{DataType, NullType}
 
 /** An expression that validates a specific invariant on a column, before writing into Delta. */
-case class CheckDeltaInvariant(
-    child: Expression,
-    invariant: Invariant) extends UnaryExpression with NonSQLExpression {
+case class CheckDeltaInvariant(child: Expression, invariant: Invariant)
+    extends UnaryExpression
+    with NonSQLExpression {
 
   override def dataType: DataType = NullType
   override def foldable: Boolean = false
@@ -46,7 +46,8 @@ case class CheckDeltaInvariant(
       val result = resolvedExpr.eval(input)
       if (result == null || result == false) {
         throw InvariantViolationException(
-          invariant, s"Value ${child.eval(input)} violates requirement.")
+          invariant,
+          s"Value ${child.eval(input)} violates requirement.")
       }
   }
 

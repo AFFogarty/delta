@@ -28,7 +28,6 @@ import org.apache.spark.sql.internal.SQLConf
 object DeltaSQLConf {
   def buildConf(key: String): ConfigBuilder = SQLConf.buildConf(s"spark.databricks.delta.$key")
 
-
   val RESOLVE_TIME_TRAVEL_ON_IDENTIFIER =
     buildConf("timeTravel.resolveOnIdentifier.enabled")
       .internal()
@@ -111,7 +110,6 @@ object DeltaSQLConf {
       .booleanConf
       .createWithDefault(true)
 
-
   val DELTA_MAX_SNAPSHOT_LINEAGE_LENGTH =
     buildConf("maxSnapshotLineageLength")
       .internal()
@@ -124,23 +122,26 @@ object DeltaSQLConf {
   val DELTA_HISTORY_PAR_SEARCH_THRESHOLD =
     buildConf("history.maxKeysPerList")
       .internal()
-      .doc("How many commits to list when performing a parallel search. Currently set to 1000, " +
-        "which is the maximum keys returned by S3 per list call. Azure can return 5000, " +
-        "therefore we choose 1000.")
+      .doc(
+        "How many commits to list when performing a parallel search. Currently set to 1000, " +
+          "which is the maximum keys returned by S3 per list call. Azure can return 5000, " +
+          "therefore we choose 1000.")
       .intConf
       .createWithDefault(1000)
 
   val DELTA_HISTORY_METRICS_ENABLED =
     buildConf("history.metricsEnabled")
-      .doc("Enables Metrics reporting in Describe History. CommitInfo will now record the " +
-        "Operation Metrics.")
+      .doc(
+        "Enables Metrics reporting in Describe History. CommitInfo will now record the " +
+          "Operation Metrics.")
       .booleanConf
       .createWithDefault(false)
 
   val DELTA_VACUUM_RETENTION_CHECK_ENABLED =
     buildConf("retentionDurationCheck.enabled")
-      .doc("Adds a check preventing users from running vacuum with a very short retention " +
-        "period, which may end up corrupting the Delta Log.")
+      .doc(
+        "Adds a check preventing users from running vacuum with a very short retention " +
+          "period, which may end up corrupting the Delta Log.")
       .booleanConf
       .createWithDefault(true)
 
@@ -164,8 +165,7 @@ object DeltaSQLConf {
   val DELTA_STATE_CORRUPTION_IS_FATAL =
     buildConf("state.corruptionIsFatal")
       .internal()
-      .doc(
-        """If true, throws a fatal error when the recreated Delta State doesn't
+      .doc("""If true, throws a fatal error when the recreated Delta State doesn't
           |match committed checksum file.
         """)
       .booleanConf
@@ -173,8 +173,7 @@ object DeltaSQLConf {
 
   val DELTA_ASYNC_UPDATE_STALENESS_TIME_LIMIT =
     buildConf("stalenessLimit")
-      .doc(
-        """Setting a non-zero time limit will allow you to query the last loaded state of the Delta
+      .doc("""Setting a non-zero time limit will allow you to query the last loaded state of the Delta
           |table without blocking on a table update. You can use this configuration to reduce the
           |latency on queries when up-to-date results are not a requirement. Table updates will be
           |scheduled on a separate scheduler pool in a FIFO queue, and will share cluster resources
@@ -186,8 +185,9 @@ object DeltaSQLConf {
 
   val DELTA_ALTER_LOCATION_BYPASS_SCHEMA_CHECK =
     buildConf("alterLocation.bypassSchemaCheck")
-      .doc("If true, Alter Table Set Location on Delta will go through even if the Delta table " +
-        "in the new location has a different schema from the original Delta table.")
+      .doc(
+        "If true, Alter Table Set Location on Delta will go through even if the Delta table " +
+          "in the new location has a different schema from the original Delta table.")
       .booleanConf
       .createWithDefault(false)
 

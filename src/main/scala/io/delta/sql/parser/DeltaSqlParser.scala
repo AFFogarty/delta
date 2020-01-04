@@ -83,8 +83,7 @@ class DeltaSqlParser(val delegate: ParserInterface) extends ParserInterface {
    */
   // scalastyle:on
   protected def parse[T](command: String)(toResult: DeltaSqlBaseParser => T): T = {
-    val lexer = new DeltaSqlBaseLexer(
-      new UpperCaseCharStream(CharStreams.fromString(command)))
+    val lexer = new DeltaSqlBaseLexer(new UpperCaseCharStream(CharStreams.fromString(command)))
     lexer.removeErrorListeners()
     lexer.addErrorListener(ParseErrorListener)
 
@@ -154,20 +153,20 @@ class DeltaSqlAstBuilder extends DeltaSqlBaseBaseVisitor[AnyRef] {
       ctx.RUN != null)
   }
 
-  override def visitDescribeDeltaDetail(
-      ctx: DescribeDeltaDetailContext): LogicalPlan = withOrigin(ctx) {
-    DescribeDeltaDetailCommand(
-      Option(ctx.path).map(string),
-      Option(ctx.table).map(visitTableIdentifier))
-  }
+  override def visitDescribeDeltaDetail(ctx: DescribeDeltaDetailContext): LogicalPlan =
+    withOrigin(ctx) {
+      DescribeDeltaDetailCommand(
+        Option(ctx.path).map(string),
+        Option(ctx.table).map(visitTableIdentifier))
+    }
 
-  override def visitDescribeDeltaHistory(
-      ctx: DescribeDeltaHistoryContext): LogicalPlan = withOrigin(ctx) {
-    DescribeDeltaHistoryCommand(
-      Option(ctx.path).map(string),
-      Option(ctx.table).map(visitTableIdentifier),
-      Option(ctx.limit).map(_.getText.toInt))
-  }
+  override def visitDescribeDeltaHistory(ctx: DescribeDeltaHistoryContext): LogicalPlan =
+    withOrigin(ctx) {
+      DescribeDeltaHistoryCommand(
+        Option(ctx.path).map(string),
+        Option(ctx.table).map(visitTableIdentifier),
+        Option(ctx.limit).map(_.getText.toInt))
+    }
 
   override def visitGenerate(ctx: GenerateContext): LogicalPlan = withOrigin(ctx) {
     DeltaGenerateCommand(
@@ -186,13 +185,14 @@ class DeltaSqlAstBuilder extends DeltaSqlBaseBaseVisitor[AnyRef] {
     visit(ctx.statement).asInstanceOf[LogicalPlan]
   }
 
-  protected def visitTableIdentifier(ctx: QualifiedNameContext): TableIdentifier = withOrigin(ctx) {
-    ctx.identifier.asScala match {
-      case Seq(tbl) => TableIdentifier(tbl.getText)
-      case Seq(db, tbl) => TableIdentifier(tbl.getText, Some(db.getText))
-      case _ => throw new ParseException(s"Illegal table name ${ctx.getText}", ctx)
+  protected def visitTableIdentifier(ctx: QualifiedNameContext): TableIdentifier =
+    withOrigin(ctx) {
+      ctx.identifier.asScala match {
+        case Seq(tbl) => TableIdentifier(tbl.getText)
+        case Seq(db, tbl) => TableIdentifier(tbl.getText, Some(db.getText))
+        case _ => throw new ParseException(s"Illegal table name ${ctx.getText}", ctx)
+      }
     }
-  }
 
   override def visitPassThrough(ctx: PassThroughContext): LogicalPlan = null
 
@@ -212,11 +212,7 @@ class DeltaSqlAstBuilder extends DeltaSqlBaseBaseVisitor[AnyRef] {
       builder.putString(HIVE_TYPE_STRING, rawDataType.catalogString)
     }
 
-    StructField(
-      ctx.colName.getText,
-      cleanedDataType,
-      nullable = NOT == null,
-      builder.build())
+    StructField(ctx.colName.getText, cleanedDataType, nullable = NOT == null, builder.build())
   }
 
   protected def typedVisit[T](ctx: ParseTree): T = {
@@ -310,10 +306,8 @@ case object PostProcessor extends DeltaSqlBaseBaseListener {
     replaceTokenByIdentifier(ctx, 0)(identity)
   }
 
-  private def replaceTokenByIdentifier(
-    ctx: ParserRuleContext,
-    stripMargins: Int)(
-    f: CommonToken => CommonToken = identity): Unit = {
+  private def replaceTokenByIdentifier(ctx: ParserRuleContext, stripMargins: Int)(
+      f: CommonToken => CommonToken = identity): Unit = {
     val parent = ctx.getParent
     parent.removeLastChild()
     val token = ctx.getChild(0).getPayload.asInstanceOf[Token]

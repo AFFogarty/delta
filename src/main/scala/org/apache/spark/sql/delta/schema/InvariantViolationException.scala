@@ -22,10 +22,9 @@ import org.apache.spark.sql.catalyst.analysis.UnresolvedAttribute
 case class InvariantViolationException(msg: String) extends IllegalArgumentException(msg)
 
 object InvariantViolationException {
-  def apply(
-      invariant: Invariant,
-      msg: String): InvariantViolationException = {
-    new InvariantViolationException(s"Invariant ${invariant.rule.name} violated for column: " +
-      s"${UnresolvedAttribute(invariant.column).name}.\n$msg")
+  def apply(invariant: Invariant, msg: String): InvariantViolationException = {
+    new InvariantViolationException(
+      s"Invariant ${invariant.rule.name} violated for column: " +
+        s"${UnresolvedAttribute(invariant.column).name}.\n$msg")
   }
 }

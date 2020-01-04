@@ -77,7 +77,8 @@ object FileNames {
     if (segments.size != 5) None else Some(segments(3).toInt)
   }
 
-  def isCheckpointFile(path: Path): Boolean = checkpointFilePattern.matcher(path.getName).matches()
+  def isCheckpointFile(path: Path): Boolean =
+    checkpointFilePattern.matcher(path.getName).matches()
 
   def isDeltaFile(path: Path): Boolean = deltaFilePattern.matcher(path.getName).matches()
 

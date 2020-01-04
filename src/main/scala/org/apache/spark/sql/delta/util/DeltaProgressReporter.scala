@@ -19,6 +19,7 @@ package org.apache.spark.sql.delta.util
 import org.apache.spark.internal.Logging
 
 trait DeltaProgressReporter extends Logging {
+
   /**
    * Report a log to indicate some command is running.
    */

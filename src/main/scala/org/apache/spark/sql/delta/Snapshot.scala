@@ -60,17 +60,16 @@ class Snapshot(
     val deltaLog: DeltaLog,
     val timestamp: Long,
     val lineageLength: Int = 1)
-  extends StateCache
-  with PartitionFiltering
-  with DeltaFileFormat
-  with DeltaLogging {
+    extends StateCache
+    with PartitionFiltering
+    with DeltaFileFormat
+    with DeltaLogging {
 
   import Snapshot._
   // For implicits which re-use Encoder:
   import SingleAction._
 
   protected def spark = SparkSession.active
-
 
   // Reconstruct the state by applying deltas in order to the checkpoint.
   // We partition by path as it is likely the bulk of the data is add/remove.
@@ -88,7 +87,8 @@ class Snapshot(
     val hadoopConf = new SerializableConfiguration(spark.sessionState.newHadoopConf())
     val logPath = path.toUri // for serializability
 
-    allActions.as[SingleAction]
+    allActions
+      .as[SingleAction]
       .mapPartitions { actions =>
         val hdpConf = hadoopConf.value
         actions.flatMap {
@@ -122,11 +122,20 @@ class Snapshot(
 
   // Force materialization of the cache and collect the basics to the driver for fast access.
   // Here we need to bypass the ACL checks for SELECT anonymous function permissions.
-  val State(protocol, metadata, setTransactions, sizeInBytes, numOfFiles, numOfMetadata,
-      numOfProtocol, numOfRemoves, numOfSetTransactions) = {
+  val State(
+    protocol,
+    metadata,
+    setTransactions,
+    sizeInBytes,
+    numOfFiles,
+    numOfMetadata,
+    numOfProtocol,
+    numOfRemoves,
+    numOfSetTransactions) = {
     val implicits = spark.implicits
     import implicits._
-    state.select(
+    state
+      .select(
         coalesce(last($"protocol", ignoreNulls = true), defaultProtocol()) as "protocol",
         coalesce(last($"metaData", ignoreNulls = true), emptyMetadata()) as "metadata",
         collect_set($"txn") as "setTransactions",
@@ -137,8 +146,8 @@ class Snapshot(
         count($"protocol") as "numOfProtocol",
         count($"remove") as "numOfRemoves",
         count($"txn") as "numOfSetTransactions")
-      .as[State](stateEncoder)}
-      .first
+      .as[State](stateEncoder)
+  }.first
 
   deltaLog.protocolRead(protocol)
 
@@ -173,8 +182,7 @@ class Snapshot(
    * Load the transaction logs from file indices. The files here may have different file formats
    * and the file format can be extracted from the file extensions.
    */
-  private def load(
-      files: Seq[DeltaLogFileIndex]): Dataset[SingleAction] = {
+  private def load(files: Seq[DeltaLogFileIndex]): Dataset[SingleAction] = {
     val relations = files.map { index: DeltaLogFileIndex =>
       val fsRelation = HadoopFsRelation(
         index,
@@ -224,8 +232,9 @@ object Snapshot extends DeltaLogging {
         filePath
       } else {
         // scalastyle:off throwerror
-        throw new AssertionError(s"File ($filePath) doesn't belong in the " +
-          s"transaction log at $logBasePath. Please contact Databricks Support.")
+        throw new AssertionError(
+          s"File ($filePath) doesn't belong in the " +
+            s"transaction log at $logBasePath. Please contact Databricks Support.")
         // scalastyle:on throwerror
       }
     })
@@ -264,4 +273,4 @@ class InitialSnapshot(
     val logPath: Path,
     override val deltaLog: DeltaLog,
     override val metadata: Metadata)
-  extends Snapshot(logPath, -1, None, Nil, -1, deltaLog, -1)
+    extends Snapshot(logPath, -1, None, Nil, -1, deltaLog, -1)

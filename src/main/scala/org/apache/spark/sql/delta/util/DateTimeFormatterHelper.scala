@@ -50,7 +50,9 @@ import com.google.common.cache.CacheBuilder
  * Forked from [[org.apache.spark.sql.catalyst.util.DateTimeFormatterHelper]]
  */
 trait DateTimeFormatterHelper {
-  protected def toInstantWithZoneId(temporalAccessor: TemporalAccessor, zoneId: ZoneId): Instant = {
+  protected def toInstantWithZoneId(
+      temporalAccessor: TemporalAccessor,
+      zoneId: ZoneId): Instant = {
     val localTime = if (temporalAccessor.query(TemporalQueries.localTime) == null) {
       LocalTime.ofNanoOfDay(0)
     } else {
@@ -80,7 +82,8 @@ trait DateTimeFormatterHelper {
 }
 
 private object DateTimeFormatterHelper {
-  val cache = CacheBuilder.newBuilder()
+  val cache = CacheBuilder
+    .newBuilder()
     .maximumSize(128)
     .build[(String, Locale), DateTimeFormatter]()
 
@@ -109,8 +112,10 @@ private object DateTimeFormatterHelper {
     val builder = createBuilder()
       .append(DateTimeFormatter.ISO_LOCAL_DATE)
       .appendLiteral(' ')
-      .appendValue(ChronoField.HOUR_OF_DAY, 2).appendLiteral(':')
-      .appendValue(ChronoField.MINUTE_OF_HOUR, 2).appendLiteral(':')
+      .appendValue(ChronoField.HOUR_OF_DAY, 2)
+      .appendLiteral(':')
+      .appendValue(ChronoField.MINUTE_OF_HOUR, 2)
+      .appendLiteral(':')
       .appendValue(ChronoField.SECOND_OF_MINUTE, 2)
       .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
     toFormatter(builder, TimestampFormatter.defaultLocale)

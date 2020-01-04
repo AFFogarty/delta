@@ -60,7 +60,8 @@ object VacuumCommand extends VacuumCommandImpl {
     if (TimeUnit.HOURS.toMillis(configuredRetentionHours) < configuredRetention) {
       configuredRetentionHours += 1
     }
-    require(!checkEnabled || retentionSafe,
+    require(
+      !checkEnabled || retentionSafe,
       s"""Are you sure you would like to vacuum files with such a low retention period? If you have
         |writers that are currently writing to this table, there is a risk that you may corrupt the
         |state of your Delta table.
@@ -105,19 +106,24 @@ object VacuumCommand extends VacuumCommandImpl {
 
       val snapshot = deltaLog.update()
 
-      require(snapshot.version >= 0, "No state defined for this table. Is this really " +
-        "a Delta table? Refusing to garbage collect.")
+      require(
+        snapshot.version >= 0,
+        "No state defined for this table. Is this really " +
+          "a Delta table? Refusing to garbage collect.")
 
       val retentionMillis = retentionHours.map(h => TimeUnit.HOURS.toMillis(math.round(h)))
       checkRetentionPeriodSafety(spark, retentionMillis, deltaLog.tombstoneRetentionMillis)
 
-      val deleteBeforeTimestamp = retentionMillis.map { millis =>
-        clock.getTimeMillis() - millis
-      }.getOrElse(deltaLog.minFileRetentionTimestamp)
-      logInfo(s"Starting garbage collection (dryRun = $dryRun) of untracked files older than " +
-        s"${new Date(deleteBeforeTimestamp).toGMTString} in $path")
-      val hadoopConf = spark.sparkContext.broadcast(
-        new SerializableConfiguration(sessionHadoopConf))
+      val deleteBeforeTimestamp = retentionMillis
+        .map { millis =>
+          clock.getTimeMillis() - millis
+        }
+        .getOrElse(deltaLog.minFileRetentionTimestamp)
+      logInfo(
+        s"Starting garbage collection (dryRun = $dryRun) of untracked files older than " +
+          s"${new Date(deleteBeforeTimestamp).toGMTString} in $path")
+      val hadoopConf =
+        spark.sparkContext.broadcast(new SerializableConfiguration(sessionHadoopConf))
       val basePath = fs.makeQualified(path).toString
       var isBloomFiltered = false
 
@@ -154,7 +160,8 @@ object VacuumCommand extends VacuumCommandImpl {
               case _ => Nil
             }
           }
-        }.toDF("path")
+        }
+        .toDF("path")
 
       val partitionColumns = snapshot.metadata.partitionSchema.fieldNames
       val parallelism = spark.sessionState.conf.parallelPartitionDiscoveryParallelism
@@ -195,14 +202,16 @@ object VacuumCommand extends VacuumCommandImpl {
                   relativize(new Path(fileStatus.path), fs, reservoirBase, isDir = false))
               }
             }
-          }.groupBy($"value" as 'path)
+          }
+          .groupBy($"value" as 'path)
           .count()
           .join(validFiles, Seq("path"), "leftanti")
           .where('count === 1)
           .select('path)
           .as[String]
           .map { relativePath =>
-            assert(!stringToPath(relativePath).isAbsolute,
+            assert(
+              !stringToPath(relativePath).isAbsolute,
               "Shouldn't have any absolute paths for deletion here.")
             pathToString(DeltaFileOperations.absolutePath(basePath, relativePath))
           }
@@ -218,8 +227,9 @@ object VacuumCommand extends VacuumCommandImpl {
             objectsDeleted = numFiles)
 
           recordDeltaEvent(deltaLog, "delta.gc.stats", data = stats)
-          logConsole(s"Found $numFiles files and directories in a total of " +
-            s"$dirCounts directories that are safe to delete.")
+          logConsole(
+            s"Found $numFiles files and directories in a total of " +
+              s"$dirCounts directories that are safe to delete.")
 
           return diff.map(f => stringToPath(f).toString).toDF("path")
         }
@@ -235,8 +245,9 @@ object VacuumCommand extends VacuumCommandImpl {
           dirsPresentBeforeDelete = dirCounts,
           objectsDeleted = filesDeleted)
         recordDeltaEvent(deltaLog, "delta.gc.stats", data = stats)
-        logConsole(s"Deleted $filesDeleted files and directories in a total " +
-          s"of $dirCounts directories.")
+        logConsole(
+          s"Deleted $filesDeleted files and directories in a total " +
+            s"of $dirCounts directories.")
 
         spark.createDataset(Seq(basePath)).toDF("path")
       } finally {

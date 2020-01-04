@@ -39,7 +39,8 @@ case class DeltaTimeTravelSpec(
     version: Option[Long],
     creationSource: Option[String]) {
 
-  assert(version.isEmpty ^ timestamp.isEmpty,
+  assert(
+    version.isEmpty ^ timestamp.isEmpty,
     "Either the version or timestamp should be provided for time travel")
 
   /**
@@ -53,6 +54,7 @@ case class DeltaTimeTravelSpec(
 }
 
 object DeltaTimeTravelSpec {
+
   /** A regex which looks for the pattern ...@v(some numbers) for extracting the version number */
   private val VERSION_URI_FOR_TIME_TRAVEL = ".*@[vV](\\d+)$".r
 
@@ -68,7 +70,7 @@ object DeltaTimeTravelSpec {
   /** Returns whether the given table identifier may contain time travel syntax. */
   def isApplicable(conf: SQLConf, identifier: String): Boolean = {
     conf.getConf(DeltaSQLConf.RESOLVE_TIME_TRAVEL_ON_IDENTIFIER) &&
-      identifierContainsTimeTravel(identifier)
+    identifierContainsTimeTravel(identifier)
   }
 
   /** Checks if the table identifier contains patterns that resemble time travel syntax. */
@@ -105,7 +107,8 @@ object DeltaTimeTravelSpec {
     val format = FastDateFormat.getInstance(TIMESTAMP_FORMAT, DateTimeUtils.getTimeZone(timeZone))
 
     try {
-      val sqlTs = DateTimeUtils.fromJavaTimestamp(new java.sql.Timestamp(format.parse(ts).getTime))
+      val sqlTs =
+        DateTimeUtils.fromJavaTimestamp(new java.sql.Timestamp(format.parse(ts).getTime))
       PreciseTimestampConversion(Literal(sqlTs), LongType, TimestampType)
     } catch {
       case e: java.text.ParseException =>

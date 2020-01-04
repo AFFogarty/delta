@@ -39,9 +39,8 @@ object SchemaUtils {
    *                          StructFields, we definitely recurse into StructTypes. This flag
    *                          defines whether we should recurse into ArrayType and MapType.
    */
-  def filterRecursively(
-      schema: StructType,
-      checkComplexTypes: Boolean)(f: StructField => Boolean): Seq[(Seq[String], StructField)] = {
+  def filterRecursively(schema: StructType, checkComplexTypes: Boolean)(
+      f: StructField => Boolean): Seq[(Seq[String], StructField)] = {
     def recurseIntoComplexTypes(
         complexType: DataType,
         columnStack: Seq[String]): Seq[(Seq[String], StructField)] = complexType match {
@@ -50,7 +49,8 @@ object SchemaUtils {
           val includeLevel = if (f(sf)) Seq((columnStack, sf)) else Nil
           includeLevel ++ recurseIntoComplexTypes(sf.dataType, columnStack :+ sf.name)
         }
-      case a: ArrayType if checkComplexTypes => recurseIntoComplexTypes(a.elementType, columnStack)
+      case a: ArrayType if checkComplexTypes =>
+        recurseIntoComplexTypes(a.elementType, columnStack)
       case m: MapType if checkComplexTypes =>
         recurseIntoComplexTypes(m.keyType, columnStack :+ "key") ++
           recurseIntoComplexTypes(m.valueType, columnStack :+ "value")
@@ -200,14 +200,16 @@ object SchemaUtils {
       val topLevelDataFields = dataFields.map(UnresolvedAttribute.parseAttributeName(_).head)
       if (topLevelDataFields.subsetOf(tableFields)) {
         val columnsThatNeedRenaming = dataFields -- tableFields
-        throw new AnalysisException("Nested fields need renaming to avoid data loss. " +
-          s"Fields:\n${columnsThatNeedRenaming.mkString("[", ", ", "]")}.\n" +
-          s"Original schema:\n${baseSchema.treeString}")
+        throw new AnalysisException(
+          "Nested fields need renaming to avoid data loss. " +
+            s"Fields:\n${columnsThatNeedRenaming.mkString("[", ", ", "]")}.\n" +
+            s"Original schema:\n${baseSchema.treeString}")
       }
 
       val baseFields = toFieldMap(baseSchema)
       val aliasExpressions = dataSchema.map { field =>
-        val originalCase = baseFields.getOrElse(field.name,
+        val originalCase = baseFields.getOrElse(
+          field.name,
           throw new AnalysisException(
             s"Can't resolve column ${field.name} in ${baseSchema.treeString}"))
         if (originalCase.name != field.name) {
@@ -251,10 +253,12 @@ object SchemaUtils {
       val existing = toFieldMap(existingSchema)
       // scalastyle:off caselocale
       val existingFieldNames = existingSchema.fieldNames.map(_.toLowerCase).toSet
-      assert(existingFieldNames.size == existingSchema.length,
+      assert(
+        existingFieldNames.size == existingSchema.length,
         "Delta tables don't allow field names that only differ by case")
       val newFields = readSchema.fieldNames.map(_.toLowerCase).toSet
-      assert(newFields.size == readSchema.length,
+      assert(
+        newFields.size == readSchema.length,
         "Delta tables don't allow field names that only differ by case")
       // scalastyle:on caselocale
 
@@ -268,9 +272,9 @@ object SchemaUtils {
           case Some(existingField) =>
             // we know the name matches modulo case - now verify exact match
             (existingField.name == newField.name
-              // if existing value is non-nullable, so should be the new value
+            // if existing value is non-nullable, so should be the new value
               && (existingField.nullable || !newField.nullable)
-              // and the type of the field must be compatible, too
+            // and the type of the field must be compatible, too
               && isDatatypeReadCompatible(existingField.dataType, newField.dataType))
           case None =>
             // new fields are fine, they just won't be returned
@@ -293,40 +297,43 @@ object SchemaUtils {
     def canOrNot(can: Boolean) = if (can) "can" else "can not"
     def isOrNon(b: Boolean) = if (b) "" else "non-"
 
-    def missingFieldsMessage(fields: Set[String]) : String = {
+    def missingFieldsMessage(fields: Set[String]): String = {
       s"Specified schema is missing field(s): ${fields.mkString(", ")}"
     }
-    def additionalFieldsMessage(fields: Set[String]) : String = {
+    def additionalFieldsMessage(fields: Set[String]): String = {
       s"Specified schema has additional field(s): ${fields.mkString(", ")}"
     }
-    def fieldNullabilityMessage(field: String, specified: Boolean, existing: Boolean) : String = {
+    def fieldNullabilityMessage(field: String, specified: Boolean, existing: Boolean): String = {
       s"Field $field is ${isOrNon(specified)}nullable in specified " +
         s"schema but ${isOrNon(existing)}nullable in existing schema."
     }
-    def arrayNullabilityMessage(field: String, specified: Boolean, existing: Boolean) : String = {
+    def arrayNullabilityMessage(field: String, specified: Boolean, existing: Boolean): String = {
       s"Array field $field ${canOrNot(specified)} contain null in specified schema " +
         s"but ${canOrNot(existing)} in existing schema"
     }
-    def valueNullabilityMessage(field: String, specified: Boolean, existing: Boolean) : String = {
+    def valueNullabilityMessage(field: String, specified: Boolean, existing: Boolean): String = {
       s"Map field $field ${canOrNot(specified)} contain null values in specified schema " +
         s"but ${canOrNot(existing)} in existing schema"
     }
-    def metadataDifferentMessage(field: String, specified: Metadata, existing: Metadata)
-      : String = {
+    def metadataDifferentMessage(
+        field: String,
+        specified: Metadata,
+        existing: Metadata): String = {
       s"""Specified metadata for field $field is different from existing schema:
          |Specified: $specified
          |Existing:  $existing""".stripMargin
     }
-    def typeDifferenceMessage(field: String, specified: DataType, existing: DataType)
-      : String = {
+    def typeDifferenceMessage(field: String, specified: DataType, existing: DataType): String = {
       s"""Specified type for $field is different from existing schema:
          |Specified: ${specified.typeName}
          |Existing:  ${existing.typeName}""".stripMargin
     }
 
     // prefix represents the nested field(s) containing this schema
-    def structDifference(existing: StructType, specified: StructType, prefix: String)
-      : Seq[String] = {
+    def structDifference(
+        existing: StructType,
+        specified: StructType,
+        prefix: String): Seq[String] = {
 
       // 1. ensure set of fields is the same
       val existingFieldNames = existing.fieldNames.toSet
@@ -345,14 +352,17 @@ object SchemaUtils {
       // 2. for each common field, ensure it has the same type and metadata
       val existingFields = toFieldMap(existing)
       val specifiedFields = toFieldMap(specified)
-      val fieldsDiffs = (existingFieldNames intersect specifiedFieldNames).flatMap(
-        (name: String) => fieldDifference(existingFields(name), specifiedFields(name), prefix))
+      val fieldsDiffs =
+        (existingFieldNames intersect specifiedFieldNames).flatMap((name: String) =>
+          fieldDifference(existingFields(name), specifiedFields(name), prefix))
 
       missingFieldsDiffs ++ extraFieldsDiffs ++ fieldsDiffs
     }
 
-    def fieldDifference(existing: StructField, specified: StructField, prefix: String)
-      : Seq[String] = {
+    def fieldDifference(
+        existing: StructField,
+        specified: StructField,
+        prefix: String): Seq[String] = {
 
       val name = s"$prefix${existing.name}"
       val nullabilityDiffs =
@@ -367,8 +377,7 @@ object SchemaUtils {
       nullabilityDiffs ++ metadataDiffs ++ typeDiffs
     }
 
-    def typeDifference(existing: DataType, specified: DataType, field: String)
-      : Seq[String] = {
+    def typeDifference(existing: DataType, specified: DataType, field: String): Seq[String] = {
 
       (existing, specified) match {
         case (e: StructType, s: StructType) => structDifference(e, s, s"$field.")
@@ -390,7 +399,7 @@ object SchemaUtils {
       elementDiffs ++ nullabilityDiffs
     }
 
-    def mapDifference(existing: MapType, specified: MapType, field: String) : Seq[String] = {
+    def mapDifference(existing: MapType, specified: MapType, field: String): Seq[String] = {
 
       val keyDiffs =
         typeDifference(existing.keyType, specified.keyType, s"$field[key]")
@@ -398,8 +407,12 @@ object SchemaUtils {
         typeDifference(existing.valueType, specified.valueType, s"$field[value]")
       val nullabilityDiffs =
         if (existing.valueContainsNull == specified.valueContainsNull) Nil
-        else Seq(
-          valueNullabilityMessage(field, specified.valueContainsNull, existing.valueContainsNull))
+        else
+          Seq(
+            valueNullabilityMessage(
+              field,
+              specified.valueContainsNull,
+              existing.valueContainsNull))
 
       keyDiffs ++ valueDiffs ++ nullabilityDiffs
     }
@@ -491,13 +504,9 @@ object SchemaUtils {
           if (!column.nullable && nullable) {
             throw new AnalysisException(
               "A non-nullable nested field can't be added to a nullable parent. Please set the " +
-              "nullability of the parent column accordingly.")
+                "nullability of the parent column accordingly.")
           }
-          StructField(
-            name,
-            addColumn(f, column, position.tail),
-            nullable,
-            metadata)
+          StructField(name, addColumn(f, column, position.tail), nullable, metadata)
         case o =>
           throw new AnalysisException(s"Can only add nested columns to StructType. Found: $o")
       }
@@ -585,19 +594,22 @@ object SchemaUtils {
                 verifyNullability(fromField.nullable, toField.nullable, newPath)
                 check(fromField.dataType, toField.dataType, newPath)
               case None =>
-                verify(toField.nullable,
+                verify(
+                  toField.nullable,
                   "adding non-nullable column " +
-                  UnresolvedAttribute(columnPath :+ toField.name).name)
+                    UnresolvedAttribute(columnPath :+ toField.name).name)
             }
           }
-          verify(remainingFields.isEmpty,
+          verify(
+            remainingFields.isEmpty,
             s"dropping column(s) [${remainingFields.map(_.name).mkString(", ")}]" +
-            (if (columnPath.nonEmpty) s" from ${UnresolvedAttribute(columnPath).name}" else ""))
+              (if (columnPath.nonEmpty) s" from ${UnresolvedAttribute(columnPath).name}" else ""))
 
         case (fromDataType, toDataType) =>
-          verify(fromDataType == toDataType,
+          verify(
+            fromDataType == toDataType,
             s"changing data type of ${UnresolvedAttribute(columnPath).name} " +
-            s"from $fromDataType to $toDataType")
+              s"from $fromDataType to $toDataType")
       }
     }
 
@@ -625,16 +637,20 @@ object SchemaUtils {
           fn)
 
       case (StructType(fromFields), StructType(toFields)) =>
-        StructType(
-          toFields.map { toField =>
-            fromFields.find(field => resolver(field.name, toField.name)).map { fromField =>
-              toField.getComment().map(fromField.withComment).getOrElse(fromField)
+        StructType(toFields.map { toField =>
+          fromFields
+            .find(field => resolver(field.name, toField.name))
+            .map { fromField =>
+              toField
+                .getComment()
+                .map(fromField.withComment)
+                .getOrElse(fromField)
                 .copy(
                   dataType = changeDataType(fromField.dataType, toField.dataType, resolver),
                   nullable = toField.nullable)
-            }.getOrElse(toField)
-          }
-        )
+            }
+            .getOrElse(toField)
+        })
 
       case (_, toDataType) => toDataType
     }
@@ -677,7 +693,8 @@ object SchemaUtils {
                     currentField.metadata)
                 } catch {
                   case NonFatal(e) =>
-                    throw new AnalysisException(s"Failed to merge fields '${currentField.name}' " +
+                    throw new AnalysisException(
+                      s"Failed to merge fields '${currentField.name}' " +
                         s"and '${updateField.name}'. " + e.getMessage)
                 }
               case None =>
@@ -692,30 +709,33 @@ object SchemaUtils {
 
           // Create the merged struct, the new fields are appended at the end of the struct.
           StructType(updatedCurrentFields ++ newFields)
-        case (ArrayType(currentElementType, currentContainsNull),
-              ArrayType(updateElementType, _)) =>
-          ArrayType(
-            merge(currentElementType, updateElementType),
-            currentContainsNull)
-        case (MapType(currentKeyType, currentElementType, currentContainsNull),
-              MapType(updateKeyType, updateElementType, _)) =>
+        case (
+            ArrayType(currentElementType, currentContainsNull),
+            ArrayType(updateElementType, _)) =>
+          ArrayType(merge(currentElementType, updateElementType), currentContainsNull)
+        case (
+            MapType(currentKeyType, currentElementType, currentContainsNull),
+            MapType(updateKeyType, updateElementType, _)) =>
           MapType(
             merge(currentKeyType, updateKeyType),
             merge(currentElementType, updateElementType),
             currentContainsNull)
-        case (DecimalType.Fixed(leftPrecision, leftScale),
-              DecimalType.Fixed(rightPrecision, rightScale)) =>
+        case (
+            DecimalType.Fixed(leftPrecision, leftScale),
+            DecimalType.Fixed(rightPrecision, rightScale)) =>
           if ((leftPrecision == rightPrecision) && (leftScale == rightScale)) {
             current
           } else if ((leftPrecision != rightPrecision) && (leftScale != rightScale)) {
             throw new AnalysisException("Failed to merge decimal types with incompatible " +
               s"precision $leftPrecision and $rightPrecision & scale $leftScale and $rightScale")
           } else if (leftPrecision != rightPrecision) {
-            throw new AnalysisException("Failed to merge decimal types with incompatible " +
-              s"precision $leftPrecision and $rightPrecision")
+            throw new AnalysisException(
+              "Failed to merge decimal types with incompatible " +
+                s"precision $leftPrecision and $rightPrecision")
           } else {
-            throw new AnalysisException("Failed to merge decimal types with incompatible " +
-              s"scale $leftScale and $rightScale")
+            throw new AnalysisException(
+              "Failed to merge decimal types with incompatible " +
+                s"scale $leftScale and $rightScale")
           }
         case _ if current == update =>
           current
@@ -756,8 +776,7 @@ object SchemaUtils {
    * @param tf function to apply.
    * @return the transformed schema.
    */
-  def transformColumns(
-      schema: StructType)(
+  def transformColumns(schema: StructType)(
       tf: (Seq[String], StructField, Resolver) => StructField): StructType = {
     def transform[E <: DataType](path: Seq[String], dt: E): E = {
       val newDt = dt match {
@@ -793,9 +812,7 @@ object SchemaUtils {
    * @tparam E the type of the payload used for transforming fields.
    * @return the transformed schema.
    */
-  def transformColumns[E](
-      schema: StructType,
-      input: Seq[(Seq[String], E)])(
+  def transformColumns[E](schema: StructType, input: Seq[(Seq[String], E)])(
       tf: (Seq[String], StructField, Seq[(Seq[String], E)]) => StructField): StructType = {
     // scalastyle:off caselocale
     val inputLookup = input.groupBy(_._1.map(_.toLowerCase))

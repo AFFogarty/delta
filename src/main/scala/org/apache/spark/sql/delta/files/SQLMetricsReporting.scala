@@ -47,8 +47,8 @@ trait SQLMetricsReporting {
    * the ones based on the metric parameters for that operation.
    */
   def getMetricsForOperation(operation: Operation): Map[String, String] = {
-    operationSQLMetrics = operationSQLMetrics.filterKeys(s =>
-      operation.metricParameters.contains(s))
+    operationSQLMetrics =
+      operationSQLMetrics.filterKeys(s => operation.metricParameters.contains(s))
     operationSQLMetrics.transform((_, v) => v.value.toString)
   }
 }

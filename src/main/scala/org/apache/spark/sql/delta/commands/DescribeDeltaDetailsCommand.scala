@@ -21,4 +21,4 @@ import org.apache.spark.sql.catalyst.TableIdentifier
 case class DescribeDeltaDetailCommand(
     override val path: Option[String],
     override val tableIdentifier: Option[TableIdentifier])
-  extends DescribeDeltaDetailCommandBase
+    extends DescribeDeltaDetailCommandBase

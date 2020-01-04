@@ -41,7 +41,8 @@ class InMemoryLogReplay(minFileRetentionTimestamp: Long) {
   private val tombstones = new scala.collection.mutable.HashMap[URI, RemoveFile]()
 
   def append(version: Long, actions: Iterator[Action]): Unit = {
-    assert(currentVersion == -1 || version == currentVersion + 1,
+    assert(
+      currentVersion == -1 || version == currentVersion + 1,
       s"Attempted to replay version $version, but state is at $currentVersion")
     currentVersion = version
     actions.foreach {
@@ -70,8 +71,8 @@ class InMemoryLogReplay(minFileRetentionTimestamp: Long) {
   /** Returns the current state of the Table as an iterator of actions. */
   def checkpoint: Iterator[Action] = {
     Option(currentProtocolVersion).toIterator ++
-    Option(currentMetaData).toIterator ++
-    transactions.values.toIterator ++
-    (activeFiles.values ++ getTombstones).toSeq.sortBy(_.path).iterator
+      Option(currentMetaData).toIterator ++
+      transactions.values.toIterator ++
+      (activeFiles.values ++ getTombstones).toSeq.sortBy(_.path).iterator
   }
 }

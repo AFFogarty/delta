@@ -45,9 +45,7 @@ import org.apache.spark.sql.delta.util.JsonUtils
  *  Underneath these functions use the standard usage log reporting defined in
  *  [[com.databricks.spark.util.DatabricksLogging]].
  */
-trait DeltaLogging
-  extends DeltaProgressReporter
-  with DatabricksLogging {
+trait DeltaLogging extends DeltaProgressReporter with DatabricksLogging {
 
   /**
    * Used to record the occurrence of a single event or report detailed, operation specific
@@ -67,19 +65,13 @@ trait DeltaLogging
       } else {
         Map.empty
       }
-      recordEvent(
-        EVENT_TAHOE,
-        Map(TAG_OP_TYPE -> opType) ++ tableTags ++ tags,
-        blob = json)
+      recordEvent(EVENT_TAHOE, Map(TAG_OP_TYPE -> opType) ++ tableTags ++ tags, blob = json)
     } catch {
       case NonFatal(e) =>
         recordEvent(
           EVENT_LOGGING_FAILURE,
           blob = JsonUtils.toJson(
-            Map("exception" -> e.getMessage,
-              "opType" -> opType,
-              "method" -> "recordDeltaEvent"))
-        )
+            Map("exception" -> e.getMessage, "opType" -> opType, "method" -> "recordDeltaEvent")))
     }
   }
 
@@ -89,8 +81,7 @@ trait DeltaLogging
   protected def recordDeltaOperation[A](
       deltaLog: DeltaLog,
       opType: String,
-      tags: Map[TagDefinition, String] = Map.empty)(
-      thunk: => A): A = {
+      tags: Map[TagDefinition, String] = Map.empty)(thunk: => A): A = {
     val tableTags = if (deltaLog != null) {
       Map(
         TAG_TAHOE_PATH -> Try(deltaLog.dataPath.toString).getOrElse(null),
@@ -98,8 +89,6 @@ trait DeltaLogging
     } else {
       Map.empty
     }
-    recordOperation(
-      new OpType(opType, ""),
-      extraTags = tableTags ++ tags) {thunk}
+    recordOperation(new OpType(opType, ""), extraTags = tableTags ++ tags) { thunk }
   }
 }

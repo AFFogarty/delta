@@ -56,21 +56,18 @@ import org.apache.spark.util.{Clock, SystemClock, ThreadUtils}
  * algorithm to handle multiple readers or writers. Any single read
  * is guaranteed to see a consistent snapshot of the table.
  */
-class DeltaLog private(
-    val logPath: Path,
-    val dataPath: Path,
-    val clock: Clock)
-  extends Checkpoints
-  with MetadataCleanup
-  with LogStoreProvider
-  with VerifyChecksum {
+class DeltaLog private (val logPath: Path, val dataPath: Path, val clock: Clock)
+    extends Checkpoints
+    with MetadataCleanup
+    with LogStoreProvider
+    with VerifyChecksum {
 
   import org.apache.spark.sql.delta.util.FileNames._
-
 
   private lazy implicit val _clock = clock
 
   @volatile private[delta] var asyncUpdateTask: Future[Unit] = _
+
   /** The timestamp when the last successful update action is finished. */
   @volatile private var lastUpdateTimestamp = -1L
 
@@ -78,6 +75,7 @@ class DeltaLog private(
 
   /** Used to read and write physical log files and checkpoints. */
   val store = createLogStore(spark)
+
   /** Direct access to the underlying storage system. */
   private[delta] val fs = logPath.getFileSystem(spark.sessionState.newHadoopConf)
 
@@ -86,7 +84,8 @@ class DeltaLog private(
 
   /** Delta History Manager containing version and commit history. */
   lazy val history = new DeltaHistoryManager(
-    this, spark.sessionState.conf.getConf(DeltaSQLConf.DELTA_HISTORY_PAR_SEARCH_THRESHOLD))
+    this,
+    spark.sessionState.conf.getConf(DeltaSQLConf.DELTA_HISTORY_PAR_SEARCH_THRESHOLD))
 
   /* --------------- *
    |  Configuration  |
@@ -137,46 +136,51 @@ class DeltaLog private(
    |  State Management  |
    * ------------------ */
 
-  @volatile private var currentSnapshot: Snapshot = lastCheckpoint.map { c =>
-    val checkpointFiles = c.parts
-      .map(p => checkpointFileWithParts(logPath, c.version, p))
-      .getOrElse(Seq(checkpointFileSingular(logPath, c.version)))
-    val deltas = store.listFrom(deltaFile(logPath, c.version + 1))
-      .filter(f => isDeltaFile(f.getPath))
-      .toArray
-    val deltaVersions = deltas.map(f => deltaVersion(f.getPath))
-    verifyDeltaVersions(deltaVersions)
-    val newVersion = deltaVersions.lastOption.getOrElse(c.version)
-    logInfo(s"Loading version $newVersion starting from checkpoint ${c.version}")
-    try {
-      val deltaIndex = DeltaLogFileIndex(DeltaLog.COMMIT_FILE_FORMAT, deltas)
-      val checkpointIndex = DeltaLogFileIndex(DeltaLog.CHECKPOINT_FILE_FORMAT, fs, checkpointFiles)
-      val snapshot = new Snapshot(
-        logPath,
-        newVersion,
-        None,
-        checkpointIndex :: deltaIndex :: Nil,
-        minFileRetentionTimestamp,
-        this,
-        // we don't want to make an additional RPC here to get commit timestamps when "deltas" is
-        // empty. The next "update" call will take care of that if there are delta files.
-        deltas.lastOption.map(_.getModificationTime).getOrElse(-1L))
+  @volatile private var currentSnapshot: Snapshot = lastCheckpoint
+    .map { c =>
+      val checkpointFiles = c.parts
+        .map(p => checkpointFileWithParts(logPath, c.version, p))
+        .getOrElse(Seq(checkpointFileSingular(logPath, c.version)))
+      val deltas = store
+        .listFrom(deltaFile(logPath, c.version + 1))
+        .filter(f => isDeltaFile(f.getPath))
+        .toArray
+      val deltaVersions = deltas.map(f => deltaVersion(f.getPath))
+      verifyDeltaVersions(deltaVersions)
+      val newVersion = deltaVersions.lastOption.getOrElse(c.version)
+      logInfo(s"Loading version $newVersion starting from checkpoint ${c.version}")
+      try {
+        val deltaIndex = DeltaLogFileIndex(DeltaLog.COMMIT_FILE_FORMAT, deltas)
+        val checkpointIndex =
+          DeltaLogFileIndex(DeltaLog.CHECKPOINT_FILE_FORMAT, fs, checkpointFiles)
+        val snapshot = new Snapshot(
+          logPath,
+          newVersion,
+          None,
+          checkpointIndex :: deltaIndex :: Nil,
+          minFileRetentionTimestamp,
+          this,
+          // we don't want to make an additional RPC here to get commit timestamps when "deltas" is
+          // empty. The next "update" call will take care of that if there are delta files.
+          deltas.lastOption.map(_.getModificationTime).getOrElse(-1L))
 
-      validateChecksum(snapshot)
-      lastUpdateTimestamp = clock.getTimeMillis()
-      snapshot
-    } catch {
-      case e: FileNotFoundException
-          if Option(e.getMessage).exists(_.contains("parquet does not exist")) =>
-        recordDeltaEvent(this, "delta.checkpoint.error.partial")
-        throw DeltaErrors.missingPartFilesException(c, e)
-      case e: AnalysisException if Option(e.getMessage).exists(_.contains("Path does not exist")) =>
-        recordDeltaEvent(this, "delta.checkpoint.error.partial")
-        throw DeltaErrors.missingPartFilesException(c, e)
+        validateChecksum(snapshot)
+        lastUpdateTimestamp = clock.getTimeMillis()
+        snapshot
+      } catch {
+        case e: FileNotFoundException
+            if Option(e.getMessage).exists(_.contains("parquet does not exist")) =>
+          recordDeltaEvent(this, "delta.checkpoint.error.partial")
+          throw DeltaErrors.missingPartFilesException(c, e)
+        case e: AnalysisException
+            if Option(e.getMessage).exists(_.contains("Path does not exist")) =>
+          recordDeltaEvent(this, "delta.checkpoint.error.partial")
+          throw DeltaErrors.missingPartFilesException(c, e)
+      }
     }
-  }.getOrElse {
-    new Snapshot(logPath, -1, None, Nil, minFileRetentionTimestamp, this, -1L)
-  }
+    .getOrElse {
+      new Snapshot(logPath, -1, None, Nil, minFileRetentionTimestamp, this, -1L)
+    }
 
   if (currentSnapshot.version == -1) {
     // No checkpoint exists. Call "update" to load delta files.
@@ -190,7 +194,7 @@ class DeltaLog private(
     // Turn this to a vector so that we can compare it with a range.
     val deltaVersions = versions.toVector
     if (deltaVersions.nonEmpty &&
-      (deltaVersions.head to deltaVersions.last) != deltaVersions) {
+        (deltaVersions.head to deltaVersions.last) != deltaVersions) {
       throw new IllegalStateException(s"versions ($deltaVersions) are not contiguous")
     }
   }
@@ -213,10 +217,10 @@ class DeltaLog private(
 
   /** Checks if the snapshot of the table has surpassed our allowed staleness. */
   private def isSnapshotStale: Boolean = {
-    val stalenessLimit = spark.sessionState.conf.getConf(
-      DeltaSQLConf.DELTA_ASYNC_UPDATE_STALENESS_TIME_LIMIT)
+    val stalenessLimit =
+      spark.sessionState.conf.getConf(DeltaSQLConf.DELTA_ASYNC_UPDATE_STALENESS_TIME_LIMIT)
     stalenessLimit == 0L || lastUpdateTimestamp < 0 ||
-      clock.getTimeMillis() - lastUpdateTimestamp >= stalenessLimit
+    clock.getTimeMillis() - lastUpdateTimestamp >= stalenessLimit
   }
 
   /**
@@ -273,96 +277,98 @@ class DeltaLog private(
    */
   private def updateInternal(isAsync: Boolean): Snapshot =
     recordDeltaOperation(this, "delta.log.update", Map(TAG_ASYNC -> isAsync.toString)) {
-    withStatusCode("DELTA", "Updating the Delta table's state") {
-      try {
-        val newFiles = store
+      withStatusCode("DELTA", "Updating the Delta table's state") {
+        try {
+          val newFiles = store
           // List from the current version since we want to get the checkpoint file for the current
           // version
-          .listFrom(checkpointPrefix(logPath, math.max(currentSnapshot.version, 0L)))
-          // Pick up checkpoint files not older than the current version and delta files newer than
-          // the current version
-          .filter { file =>
-            isCheckpointFile(file.getPath) ||
+            .listFrom(checkpointPrefix(logPath, math.max(currentSnapshot.version, 0L)))
+            // Pick up checkpoint files not older than the current version and delta files newer than
+            // the current version
+            .filter { file =>
+              isCheckpointFile(file.getPath) ||
               (isDeltaFile(file.getPath) && deltaVersion(file.getPath) > currentSnapshot.version)
-        }.toArray
+            }
+            .toArray
 
-        val (checkpoints, deltas) = newFiles.partition(f => isCheckpointFile(f.getPath))
-        if (deltas.isEmpty) {
-          lastUpdateTimestamp = clock.getTimeMillis()
-          return currentSnapshot
-        }
+          val (checkpoints, deltas) = newFiles.partition(f => isCheckpointFile(f.getPath))
+          if (deltas.isEmpty) {
+            lastUpdateTimestamp = clock.getTimeMillis()
+            return currentSnapshot
+          }
 
-        val deltaVersions = deltas.map(f => deltaVersion(f.getPath))
-        verifyDeltaVersions(deltaVersions)
-        val lastChkpoint = lastCheckpoint.map(CheckpointInstance.apply)
+          val deltaVersions = deltas.map(f => deltaVersion(f.getPath))
+          verifyDeltaVersions(deltaVersions)
+          val lastChkpoint = lastCheckpoint
+            .map(CheckpointInstance.apply)
             .getOrElse(CheckpointInstance.MaxValue)
-        val checkpointFiles = checkpoints.map(f => CheckpointInstance(f.getPath))
-        val newCheckpoint = getLatestCompleteCheckpointFromList(checkpointFiles, lastChkpoint)
-        val newSnapshot = if (newCheckpoint.isDefined) {
-          // If there is a new checkpoint, start new lineage there.
-          val newCheckpointVersion = newCheckpoint.get.version
-          assert(
-            newCheckpointVersion >= currentSnapshot.version,
-            s"Attempting to load a checkpoint($newCheckpointVersion) " +
+          val checkpointFiles = checkpoints.map(f => CheckpointInstance(f.getPath))
+          val newCheckpoint = getLatestCompleteCheckpointFromList(checkpointFiles, lastChkpoint)
+          val newSnapshot = if (newCheckpoint.isDefined) {
+            // If there is a new checkpoint, start new lineage there.
+            val newCheckpointVersion = newCheckpoint.get.version
+            assert(
+              newCheckpointVersion >= currentSnapshot.version,
+              s"Attempting to load a checkpoint($newCheckpointVersion) " +
                 s"older than current version (${currentSnapshot.version})")
-          val newCheckpointFiles = newCheckpoint.get.getCorrespondingFiles(logPath)
+            val newCheckpointFiles = newCheckpoint.get.getCorrespondingFiles(logPath)
 
-          val newVersion = deltaVersions.last
+            val newVersion = deltaVersions.last
 
-          val deltaIndex = DeltaLogFileIndex(DeltaLog.COMMIT_FILE_FORMAT, deltas)
-          val checkpointIndex =
-            DeltaLogFileIndex(DeltaLog.CHECKPOINT_FILE_FORMAT, fs, newCheckpointFiles)
-
-          logInfo(s"Loading version $newVersion starting from checkpoint $newCheckpointVersion")
-
-          new Snapshot(
-            logPath,
-            newVersion,
-            None,
-            checkpointIndex :: deltaIndex :: Nil,
-            minFileRetentionTimestamp,
-            this,
-            deltas.last.getModificationTime)
-        } else {
-          // If there is no new checkpoint, just apply the deltas to the existing state.
-          assert(currentSnapshot.version + 1 == deltaVersions.head,
-            s"versions in [${currentSnapshot.version + 1}, ${deltaVersions.head}) are missing")
-          if (currentSnapshot.lineageLength >= maxSnapshotLineageLength) {
-            // Load Snapshot from scratch to avoid StackOverflowError
-            getSnapshotAt(deltaVersions.last, Some(deltas.last.getModificationTime))
-          } else {
             val deltaIndex = DeltaLogFileIndex(DeltaLog.COMMIT_FILE_FORMAT, deltas)
+            val checkpointIndex =
+              DeltaLogFileIndex(DeltaLog.CHECKPOINT_FILE_FORMAT, fs, newCheckpointFiles)
+
+            logInfo(s"Loading version $newVersion starting from checkpoint $newCheckpointVersion")
+
             new Snapshot(
               logPath,
-              deltaVersions.last,
-              Some(currentSnapshot.state),
-              deltaIndex :: Nil,
+              newVersion,
+              None,
+              checkpointIndex :: deltaIndex :: Nil,
               minFileRetentionTimestamp,
               this,
-              deltas.last.getModificationTime,
-              lineageLength = currentSnapshot.lineageLength + 1)
+              deltas.last.getModificationTime)
+          } else {
+            // If there is no new checkpoint, just apply the deltas to the existing state.
+            assert(
+              currentSnapshot.version + 1 == deltaVersions.head,
+              s"versions in [${currentSnapshot.version + 1}, ${deltaVersions.head}) are missing")
+            if (currentSnapshot.lineageLength >= maxSnapshotLineageLength) {
+              // Load Snapshot from scratch to avoid StackOverflowError
+              getSnapshotAt(deltaVersions.last, Some(deltas.last.getModificationTime))
+            } else {
+              val deltaIndex = DeltaLogFileIndex(DeltaLog.COMMIT_FILE_FORMAT, deltas)
+              new Snapshot(
+                logPath,
+                deltaVersions.last,
+                Some(currentSnapshot.state),
+                deltaIndex :: Nil,
+                minFileRetentionTimestamp,
+                this,
+                deltas.last.getModificationTime,
+                lineageLength = currentSnapshot.lineageLength + 1)
+            }
           }
+          validateChecksum(newSnapshot)
+          currentSnapshot.uncache()
+          currentSnapshot = newSnapshot
+        } catch {
+          case f: FileNotFoundException =>
+            val message = s"No delta log found for the Delta table at $logPath"
+            logInfo(message)
+            // When the state is empty, this is expected. The log will be lazily created when needed.
+            // When the state is not empty, it's a real issue and we can't continue to execution.
+            if (currentSnapshot.version != -1) {
+              val e = new FileNotFoundException(message)
+              e.setStackTrace(f.getStackTrace())
+              throw e
+            }
         }
-        validateChecksum(newSnapshot)
-        currentSnapshot.uncache()
-        currentSnapshot = newSnapshot
-      } catch {
-        case f: FileNotFoundException =>
-          val message = s"No delta log found for the Delta table at $logPath"
-          logInfo(message)
-          // When the state is empty, this is expected. The log will be lazily created when needed.
-          // When the state is not empty, it's a real issue and we can't continue to execution.
-          if (currentSnapshot.version != -1) {
-            val e = new FileNotFoundException(message)
-            e.setStackTrace(f.getStackTrace())
-            throw e
-          }
+        lastUpdateTimestamp = clock.getTimeMillis()
+        currentSnapshot
       }
-      lastUpdateTimestamp = clock.getTimeMillis()
-      currentSnapshot
     }
-  }
-
 
   /* ------------------ *
    |  Delta Management  |
@@ -400,7 +406,6 @@ class DeltaLog private(
     }
   }
 
-
   /**
    * Upgrade the table's protocol version, by default to the maximum recognized reader and writer
    * versions in this DBR release.
@@ -433,7 +438,8 @@ class DeltaLog private(
    * return an empty Iterator.
    */
   def getChanges(startVersion: Long): Iterator[(Long, Seq[Action])] = {
-    val deltas = store.listFrom(deltaFile(logPath, startVersion))
+    val deltas = store
+      .listFrom(deltaFile(logPath, startVersion))
       .filter(f => isDeltaFile(f.getPath))
     deltas.map { status =>
       val p = status.getPath
@@ -460,9 +466,10 @@ class DeltaLog private(
   /**
    * If the given `protocol` is older than that of the client.
    */
-  private def isProtocolOld(protocol: Protocol): Boolean = protocol != null &&
-    (Action.readerVersion > protocol.minReaderVersion ||
-      Action.writerVersion > protocol.minWriterVersion)
+  private def isProtocolOld(protocol: Protocol): Boolean =
+    protocol != null &&
+      (Action.readerVersion > protocol.minReaderVersion ||
+        Action.writerVersion > protocol.minWriterVersion)
 
   /**
    * Asserts that the client is up to date with the protocol and
@@ -522,15 +529,20 @@ class DeltaLog private(
     }
 
     // Do not use the hint if the version we're asking for is smaller than the last checkpoint hint
-    val lastCheckpoint = lastCheckpointHint.collect { case ci if ci.version <= version => ci }
+    val lastCheckpoint = lastCheckpointHint
+      .collect { case ci if ci.version <= version => ci }
       .orElse(findLastCompleteCheckpoint(CheckpointInstance(version, None)))
-    val lastCheckpointFiles = lastCheckpoint.map { c =>
-      c.getCorrespondingFiles(logPath)
-    }.toSeq.flatten
+    val lastCheckpointFiles = lastCheckpoint
+      .map { c =>
+        c.getCorrespondingFiles(logPath)
+      }
+      .toSeq
+      .flatten
     val checkpointVersion = lastCheckpoint.map(_.version)
     if (checkpointVersion.isEmpty) {
       val versionZeroFile = deltaFile(logPath, 0L)
-      val versionZeroFileExists = store.listFrom(versionZeroFile)
+      val versionZeroFileExists = store
+        .listFrom(versionZeroFile)
         .take(1)
         .exists(_.getPath.getName == versionZeroFile.getName)
       if (!versionZeroFileExists) {
@@ -539,7 +551,8 @@ class DeltaLog private(
     }
     val startVersion = checkpointVersion.getOrElse(-1L) + 1
     // Listing the files may be more efficient than getting the file status for each file
-    val deltaData = store.listFrom(deltaFile(logPath, startVersion))
+    val deltaData = store
+      .listFrom(deltaFile(logPath, startVersion))
       .filter(f => isDeltaFile(f.getPath))
       .takeWhile(f => deltaVersion(f.getPath) <= version)
       .toArray
@@ -547,9 +560,11 @@ class DeltaLog private(
     if (deltaFileVersions.nonEmpty) {
       // deltaFileVersions can be empty if we're loading a version for which a checkpoint exists
       verifyDeltaVersions(deltaFileVersions)
-      require(deltaFileVersions.head == startVersion,
+      require(
+        deltaFileVersions.head == startVersion,
         s"Did not get the first delta file version: $startVersion to compute Snapshot")
-      require(deltaFileVersions.last == version,
+      require(
+        deltaFileVersions.last == version,
         s"Did not get the last delta file version: $version to compute Snapshot")
     }
 
@@ -574,7 +589,8 @@ class DeltaLog private(
   def isValid(): Boolean = {
     val expectedExistingFile = deltaFile(logPath, currentSnapshot.version)
     try {
-      store.listFrom(expectedExistingFile)
+      store
+        .listFrom(expectedExistingFile)
         .take(1)
         .exists(_.getPath.getName == expectedExistingFile.getName)
     } catch {
@@ -633,14 +649,16 @@ class DeltaLog private(
       timeTravel: Option[DeltaTimeTravelSpec] = None): BaseRelation = {
 
     val versionToUse = timeTravel.map { tt =>
-      val (version, accessType) = DeltaTableUtils.resolveTimeTravelVersion(
-        spark.sessionState.conf, this, tt)
+      val (version, accessType) =
+        DeltaTableUtils.resolveTimeTravelVersion(spark.sessionState.conf, this, tt)
       val source = tt.creationSource.getOrElse("unknown")
-      recordDeltaEvent(this, s"delta.timeTravel.$source", data = Map(
-        "tableVersion" -> snapshot.version,
-        "queriedVersion" -> version,
-        "accessType" -> accessType
-      ))
+      recordDeltaEvent(
+        this,
+        s"delta.timeTravel.$source",
+        data = Map(
+          "tableVersion" -> snapshot.version,
+          "queriedVersion" -> version,
+          "accessType" -> accessType))
       version
     }
 
@@ -681,18 +699,21 @@ object DeltaLog extends DeltaLogging {
    * in reconstructing the log.
    */
   private val deltaLogCache = {
-    val builder = CacheBuilder.newBuilder()
+    val builder = CacheBuilder
+      .newBuilder()
       .expireAfterAccess(60, TimeUnit.MINUTES)
       .removalListener(new RemovalListener[Path, DeltaLog] {
         override def onRemoval(removalNotification: RemovalNotification[Path, DeltaLog]) = {
           val log = removalNotification.getValue
-          try log.snapshot.uncache() catch {
+          try log.snapshot.uncache()
+          catch {
             case _: java.lang.NullPointerException =>
-              // Various layers will throw null pointer if the RDD is already gone.
+            // Various layers will throw null pointer if the RDD is already gone.
           }
         }
       })
-    sys.props.get("delta.log.cacheSize")
+    sys.props
+      .get("delta.log.cacheSize")
       .flatMap(v => Try(v.toLong).toOption)
       .foreach(builder.maximumSize)
     builder.build[Path, DeltaLog]()
@@ -738,14 +759,19 @@ object DeltaLog extends DeltaLogging {
     // - Different `authority` (e.g., different user tokens in the path)
     // - Different mount point.
     val cached = try {
-      deltaLogCache.get(path, new Callable[DeltaLog] {
-        override def call(): DeltaLog = recordDeltaOperation(
-            null, "delta.log.create", Map(TAG_TAHOE_PATH -> path.getParent.toString)) {
-          AnalysisHelper.allowInvokingTransformsInAnalyzer {
-            new DeltaLog(path, path.getParent, clock)
-          }
-        }
-      })
+      deltaLogCache.get(
+        path,
+        new Callable[DeltaLog] {
+          override def call(): DeltaLog =
+            recordDeltaOperation(
+              null,
+              "delta.log.create",
+              Map(TAG_TAHOE_PATH -> path.getParent.toString)) {
+              AnalysisHelper.allowInvokingTransformsInAnalyzer {
+                new DeltaLog(path, path.getParent, clock)
+              }
+            }
+        })
     } catch {
       case e: com.google.common.util.concurrent.UncheckedExecutionException =>
         throw e.getCause
@@ -817,7 +843,9 @@ object DeltaLog extends DeltaLogging {
         // If we have a special column name, e.g. `a.a`, then an UnresolvedAttribute returns
         // the column name as '`a.a`' instead of 'a.a', therefore we need to strip the backticks.
         val unquoted = a.name.stripPrefix("`").stripSuffix("`")
-        val partitionCol = partitionSchema.find { field => resolver(field.name, unquoted) }
+        val partitionCol = partitionSchema.find { field =>
+          resolver(field.name, unquoted)
+        }
         partitionCol match {
           case Some(StructField(name, dataType, _, _)) =>
             Cast(

@@ -74,7 +74,8 @@ trait MetadataCleanup extends DeltaLogging {
     val latestCheckpoint = lastCheckpoint
     if (latestCheckpoint.isEmpty) return Iterator.empty
     val threshold = latestCheckpoint.get.version - 1L
-    val files = store.listFrom(checkpointPrefix(logPath, 0))
+    val files = store
+      .listFrom(checkpointPrefix(logPath, 0))
       .filter(f => isCheckpointFile(f.getPath) || isDeltaFile(f.getPath))
     def getVersion(filePath: Path): Long = {
       if (isCheckpointFile(filePath)) {
@@ -91,8 +92,6 @@ trait MetadataCleanup extends DeltaLogging {
   private[delta] def truncateDay(timeMillis: Long): Calendar = {
     val date = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
     date.setTimeInMillis(timeMillis)
-    DateUtils.truncate(
-      date,
-      Calendar.DAY_OF_MONTH)
+    DateUtils.truncate(date, Calendar.DAY_OF_MONTH)
   }
 }

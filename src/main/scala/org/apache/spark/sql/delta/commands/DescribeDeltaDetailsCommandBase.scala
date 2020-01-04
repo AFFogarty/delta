@@ -34,19 +34,19 @@ import org.apache.spark.sql.execution.command.RunnableCommand
 
 /** The result returned by the `describe detail` command. */
 case class TableDetail(
-  format: String,
-  id: String,
-  name: String,
-  description: String,
-  location: String,
-  createdAt: Timestamp,
-  lastModified: Timestamp,
-  partitionColumns: Seq[String],
-  numFiles: java.lang.Long,
-  sizeInBytes: java.lang.Long,
-  properties: Map[String, String],
-  minReaderVersion: java.lang.Integer,
-  minWriterVersion: java.lang.Integer)
+    format: String,
+    id: String,
+    name: String,
+    description: String,
+    location: String,
+    createdAt: Timestamp,
+    lastModified: Timestamp,
+    partitionColumns: Seq[String],
+    numFiles: java.lang.Long,
+    sizeInBytes: java.lang.Long,
+    properties: Map[String, String],
+    minReaderVersion: java.lang.Integer,
+    minWriterVersion: java.lang.Integer)
 
 /**
  * A command for describing the details of a table such as the format, name, and size.
@@ -100,26 +100,29 @@ trait DescribeDeltaDetailCommandBase extends RunnableCommand with DeltaLogging {
       spark: SparkSession,
       path: Option[String],
       tableIdentifier: Option[TableIdentifier]): (Path, Option[CatalogTable]) = {
-    path.map(new Path(_) -> None).orElse {
-      tableIdentifier.map { i =>
-        DeltaTableIdentifier(spark, tableIdentifier.get) match {
-          case Some(id) if id.path.isDefined => new Path(id.path.get) -> None
-          case Some(id) =>
-            throw DeltaErrors.tableNotSupportedException("DESCRIBE DETAIL")
-          case None =>
-            // This is not a Delta table.
-            val metadata = spark.sessionState.catalog.getTableMetadata(i)
-            new Path(metadata.location) -> Some(metadata)
+    path
+      .map(new Path(_) -> None)
+      .orElse {
+        tableIdentifier.map { i =>
+          DeltaTableIdentifier(spark, tableIdentifier.get) match {
+            case Some(id) if id.path.isDefined => new Path(id.path.get) -> None
+            case Some(id) =>
+              throw DeltaErrors.tableNotSupportedException("DESCRIBE DETAIL")
+            case None =>
+              // This is not a Delta table.
+              val metadata = spark.sessionState.catalog.getTableMetadata(i)
+              new Path(metadata.location) -> Some(metadata)
+          }
         }
       }
-    }.getOrElse {
-      throw DeltaErrors.missingTableIdentifierException("DESCRIBE DETAIL")
-    }
+      .getOrElse {
+        throw DeltaErrors.missingTableIdentifierException("DESCRIBE DETAIL")
+      }
   }
 
   private def describeNonDeltaTable(table: CatalogTable): Seq[Row] = {
-    Seq(rowEncoder.fromRow(encoder.toRow(
-      TableDetail(
+    Seq(
+      rowEncoder.fromRow(encoder.toRow(TableDetail(
         table.provider.orNull,
         null,
         table.qualifiedName,
@@ -132,26 +135,27 @@ trait DescribeDeltaDetailCommandBase extends RunnableCommand with DeltaLogging {
         null,
         table.properties,
         null,
-        null
-      ))))
+        null))))
   }
 
   private def describeNonDeltaPath(path: String): Seq[Row] = {
-    Seq(rowEncoder.fromRow(encoder.toRow(
-      TableDetail(
-        null,
-        null,
-        null,
-        null,
-        path,
-        null,
-        null,
-        null,
-        null,
-        null,
-        Map.empty,
-        null,
-        null))))
+    Seq(
+      rowEncoder.fromRow(
+        encoder.toRow(
+          TableDetail(
+            null,
+            null,
+            null,
+            null,
+            path,
+            null,
+            null,
+            null,
+            null,
+            null,
+            Map.empty,
+            null,
+            null))))
   }
 
   private def describeDeltaTable(
@@ -162,8 +166,8 @@ trait DescribeDeltaDetailCommandBase extends RunnableCommand with DeltaLogging {
     val currentVersionPath = FileNames.deltaFile(deltaLog.logPath, snapshot.version)
     val fs = currentVersionPath.getFileSystem(sparkSession.sessionState.newHadoopConf)
     val tableName = tableMetadata.map(_.qualifiedName).getOrElse(snapshot.metadata.name)
-    Seq(rowEncoder.fromRow(encoder.toRow(
-      TableDetail(
+    Seq(
+      rowEncoder.fromRow(encoder.toRow(TableDetail(
         "delta",
         snapshot.metadata.id,
         tableName,

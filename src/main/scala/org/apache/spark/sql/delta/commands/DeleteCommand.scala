@@ -42,7 +42,8 @@ case class DeleteCommand(
     tahoeFileIndex: TahoeFileIndex,
     target: LogicalPlan,
     condition: Option[Expression])
-  extends RunnableCommand with DeltaCommand {
+    extends RunnableCommand
+    with DeltaCommand {
 
   override def innerChildren: Seq[QueryPlan[_]] = Seq(target)
 
@@ -62,7 +63,9 @@ case class DeleteCommand(
   }
 
   private def performDelete(
-      sparkSession: SparkSession, deltaLog: DeltaLog, txn: OptimisticTransaction) = {
+      sparkSession: SparkSession,
+      deltaLog: DeltaLog,
+      txn: OptimisticTransaction) = {
     import sparkSession.implicits._
 
     var numTouchedFiles: Long = 0
@@ -86,7 +89,9 @@ case class DeleteCommand(
       case Some(cond) =>
         val (metadataPredicates, otherPredicates) =
           DeltaTableUtils.splitMetadataAndDataPredicates(
-            cond, txn.metadata.partitionColumns, sparkSession)
+            cond,
+            txn.metadata.partitionColumns,
+            sparkSession)
 
         if (otherPredicates.isEmpty) {
           // Case 2: The condition can be evaluated using metadata only.
@@ -106,7 +111,12 @@ case class DeleteCommand(
           val nameToAddFileMap = generateCandidateFileMap(deltaLog.dataPath, candidateFiles)
 
           val fileIndex = new TahoeBatchFileIndex(
-            sparkSession, "delete", candidateFiles, deltaLog, tahoeFileIndex.path, txn.snapshot)
+            sparkSession,
+            "delete",
+            candidateFiles,
+            deltaLog,
+            tahoeFileIndex.path,
+            txn.snapshot)
           // Keep everything from the resolved target except a new TahoeFileIndex
           // that only involves the affected files instead of all files.
           val newTarget = DeltaTableUtils.replaceFileIndex(target, fileIndex)
@@ -116,8 +126,12 @@ case class DeleteCommand(
               if (numTouchedFiles == 0) {
                 Array.empty[String]
               } else {
-                data.filter(new Column(cond)).select(new Column(InputFileName())).distinct()
-                  .as[String].collect()
+                data
+                  .filter(new Column(cond))
+                  .select(new Column(InputFileName()))
+                  .distinct()
+                  .as[String]
+                  .collect()
               }
             }
 
@@ -129,7 +143,12 @@ case class DeleteCommand(
             // Case 3.2: some files need an update to remove the deleted files
             // Do the second pass and just read the affected files
             val baseRelation = buildBaseRelation(
-              sparkSession, txn, "delete", tahoeFileIndex.path, filesToRewrite, nameToAddFileMap)
+              sparkSession,
+              txn,
+              "delete",
+              tahoeFileIndex.path,
+              filesToRewrite,
+              nameToAddFileMap)
             // Keep everything from the resolved target except a new TahoeFileIndex
             // that only involves the affected files instead of all files.
             val newTarget = DeltaTableUtils.replaceFileIndex(target, baseRelation.location)
@@ -139,7 +158,8 @@ case class DeleteCommand(
             val updatedDF = targetDF.filter(new Column(filterCond))
 
             val rewrittenFiles = withStatusCode(
-              "DELTA", s"Rewriting ${filesToRewrite.size} files for DELETE operation") {
+              "DELTA",
+              s"Rewriting ${filesToRewrite.size} files for DELETE operation") {
               txn.writeFiles(updatedDF)
             }
 
@@ -165,8 +185,7 @@ case class DeleteCommand(
         numTouchedFiles,
         numRewrittenFiles,
         scanTimeMs,
-        rewriteTimeMs)
-    )
+        rewriteTimeMs))
   }
 }
 

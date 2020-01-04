@@ -49,9 +49,9 @@ case class WriteIntoDelta(
     partitionColumns: Seq[String],
     configuration: Map[String, String],
     data: DataFrame)
-  extends RunnableCommand
-  with ImplicitMetadataOperation
-  with DeltaCommand {
+    extends RunnableCommand
+    with ImplicitMetadataOperation
+    with DeltaCommand {
 
   override protected val canMergeSchema: Boolean = options.canMergeSchema
 
@@ -82,15 +82,20 @@ case class WriteIntoDelta(
       }
     }
     val rearrangeOnly = options.rearrangeOnly
-    updateMetadata(txn, data, partitionColumns, configuration, isOverwriteOperation, rearrangeOnly)
+    updateMetadata(
+      txn,
+      data,
+      partitionColumns,
+      configuration,
+      isOverwriteOperation,
+      rearrangeOnly)
 
     // Validate partition predicates
     val replaceWhere = options.replaceWhere
     val partitionFilters = if (replaceWhere.isDefined) {
       val predicates = parsePartitionPredicates(sparkSession, replaceWhere.get)
       if (mode == SaveMode.Overwrite) {
-        verifyPartitionPredicates(
-          sparkSession, txn.metadata.partitionColumns, predicates)
+        verifyPartitionPredicates(sparkSession, txn.metadata.partitionColumns, predicates)
       }
       Some(predicates)
     } else {
@@ -108,8 +113,10 @@ case class WriteIntoDelta(
         txn.filterFiles().map(_.remove)
       case (SaveMode.Overwrite, Some(predicates)) =>
         // Check to make sure the files we wrote out were actually valid.
-        val matchingFiles = DeltaLog.filterFileList(
-          txn.metadata.partitionSchema, newFiles.toDF(), predicates).as[AddFile].collect()
+        val matchingFiles = DeltaLog
+          .filterFileList(txn.metadata.partitionSchema, newFiles.toDF(), predicates)
+          .as[AddFile]
+          .collect()
         val invalidFiles = newFiles.toSet -- matchingFiles
         if (invalidFiles.nonEmpty) {
           val badPartitions = invalidFiles

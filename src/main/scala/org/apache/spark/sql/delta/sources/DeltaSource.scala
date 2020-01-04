@@ -49,7 +49,10 @@ import org.apache.spark.sql.types.StructType
  *               already completed log file.
  */
 private[delta] case class IndexedFile(
-    version: Long, index: Long, add: AddFile, isLast: Boolean = false)
+    version: Long,
+    index: Long,
+    add: AddFile,
+    isLast: Boolean = false)
 
 /**
  * A streaming source for a Delta table.
@@ -65,14 +68,17 @@ case class DeltaSource(
     spark: SparkSession,
     deltaLog: DeltaLog,
     options: DeltaOptions,
-    filters: Seq[Expression] = Nil) extends Source with DeltaLogging {
+    filters: Seq[Expression] = Nil)
+    extends Source
+    with DeltaLogging {
 
   private val maxFilesPerTrigger = options.maxFilesPerTrigger
 
   // Deprecated. Please use `ignoreDeletes` or `ignoreChanges` from now on.
   private val ignoreFileDeletion = {
     if (options.ignoreFileDeletion) {
-      val docPage = DeltaErrors.generateDocsLink(spark.sparkContext.getConf,
+      val docPage = DeltaErrors.generateDocsLink(
+        spark.sparkContext.getConf,
         "/delta/delta-streaming.html#ignoring-updates-and-deletes")
       logConsole(
         s"""WARNING: The 'ignoreFileDeletion' option is deprecated. Switch to using one of
@@ -115,13 +121,16 @@ case class DeltaSource(
 
     /** Returns matching files that were added on or after startVersion among delta logs. */
     def filterAndIndexDeltaLogs(startVersion: Long): Iterator[IndexedFile] = {
-      deltaLog.getChanges(startVersion).flatMap { case (version, actions) =>
-        val addFiles = verifyStreamHygieneAndFilterAddFiles(actions)
-        Iterator.single(IndexedFile(version, -1, null)) ++ addFiles
-          .map(_.asInstanceOf[AddFile])
-          .zipWithIndex.map { case (action, index) =>
-          IndexedFile(version, index.toLong, action, isLast = index + 1 == addFiles.size)
-        }
+      deltaLog.getChanges(startVersion).flatMap {
+        case (version, actions) =>
+          val addFiles = verifyStreamHygieneAndFilterAddFiles(actions)
+          Iterator.single(IndexedFile(version, -1, null)) ++ addFiles
+            .map(_.asInstanceOf[AddFile])
+            .zipWithIndex
+            .map {
+              case (action, index) =>
+                IndexedFile(version, index.toLong, action, isLast = index + 1 == addFiles.size)
+            }
       }
     }
 
@@ -131,8 +140,9 @@ case class DeltaSource(
       filterAndIndexDeltaLogs(fromVersion)
     }
 
-    iter.filter { case IndexedFile(version, index, _, _) =>
-      version > fromVersion || (index == -1 || index > fromIndex)
+    iter.filter {
+      case IndexedFile(version, index, _, _) =>
+        version > fromVersion || (index == -1 || index > fromIndex)
     }
   }
 
@@ -167,7 +177,6 @@ case class DeltaSource(
 
     val changes = getChanges(fromVersion, fromIndex, isStartingVersion)
 
-
     // Take each change until we've seen the configured number of addFiles. Some changes don't
     // represent file additions; we retain them for offset tracking, but they don't count towards
     // the maxFilesPerTrigger conf.
@@ -189,7 +198,8 @@ case class DeltaSource(
       return None
     }
     val IndexedFile(v, i, _, lastOfVersion) = last.get
-    assert(v >= version,
+    assert(
+      v >= version,
       s"getChangesWithRateLimit returns an invalid version: $v (expected: >= $version)")
 
     // If the last file of previous batch is the last file of its version, automatically bump
@@ -206,10 +216,11 @@ case class DeltaSource(
     val currentOffset = if (previousOffset == null) {
       getStartingOffset()
     } else {
-      val last = iteratorLast(getChangesWithRateLimit(
-        previousOffset.reservoirVersion,
-        previousOffset.index,
-        previousOffset.isStartingVersion))
+      val last = iteratorLast(
+        getChangesWithRateLimit(
+          previousOffset.reservoirVersion,
+          previousOffset.index,
+          previousOffset.isStartingVersion))
       if (last.isEmpty) {
         Some(previousOffset)
       } else {
@@ -277,7 +288,9 @@ case class DeltaSource(
       if (endOffset.isStartingVersion) {
         getChanges(endOffset.reservoirVersion, -1L, isStartingVersion = true)
       } else {
-        assert(endOffset.reservoirVersion > 0, s"invalid reservoirVersion in endOffset: $endOffset")
+        assert(
+          endOffset.reservoirVersion > 0,
+          s"invalid reservoirVersion in endOffset: $endOffset")
         // Load from snapshot `endOffset.reservoirVersion - 1L` so that `index` in `endOffset`
         // is still valid.
         getChanges(endOffset.reservoirVersion - 1L, -1L, isStartingVersion = true)
@@ -291,10 +304,13 @@ case class DeltaSource(
       getChanges(startOffset.reservoirVersion, startOffset.index, startOffset.isStartingVersion)
     }
 
-    val addFilesIter = changes.takeWhile { case IndexedFile(version, index, _, _) =>
-      version < endOffset.reservoirVersion ||
-        (version == endOffset.reservoirVersion && index <= endOffset.index)
-    }.collect { case i: IndexedFile if i.add != null => i.add }
+    val addFilesIter = changes
+      .takeWhile {
+        case IndexedFile(version, index, _, _) =>
+          version < endOffset.reservoirVersion ||
+            (version == endOffset.reservoirVersion && index <= endOffset.index)
+      }
+      .collect { case i: IndexedFile if i.add != null => i.add }
     val addFiles =
       addFilesIter.filter(a => excludeRegex.forall(_.findFirstIn(a.path).isEmpty)).toSeq
     logDebug(s"start: $start end: $end ${addFiles.toList}")

@@ -23,6 +23,7 @@ import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper
 
 /** Useful json functions used around the Delta codebase. */
 object JsonUtils {
+
   /** Used to convert between classes and JSON. */
   val mapper = new ObjectMapper with ScalaObjectMapper
   mapper.setSerializationInclusion(Include.NON_ABSENT)

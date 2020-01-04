@@ -35,15 +35,18 @@ case class PreprocessTableMerge(conf: SQLConf) extends UpdateExpressionsSupport 
     def checkCondition(cond: Expression, conditionName: String): Unit = {
       if (!cond.deterministic) {
         throw DeltaErrors.nonDeterministicNotSupportedException(
-          s"$conditionName condition of MERGE operation", cond)
+          s"$conditionName condition of MERGE operation",
+          cond)
       }
       if (cond.find(_.isInstanceOf[AggregateExpression]).isDefined) {
         throw DeltaErrors.aggsNotSupportedException(
-          s"$conditionName condition of MERGE operation", cond)
+          s"$conditionName condition of MERGE operation",
+          cond)
       }
       if (SubqueryExpression.hasSubquery(cond)) {
         throw DeltaErrors.subqueryNotSupportedException(
-          s"$conditionName condition of MERGE operation", cond)
+          s"$conditionName condition of MERGE operation",
+          cond)
       }
     }
 
@@ -58,7 +61,9 @@ case class PreprocessTableMerge(conf: SQLConf) extends UpdateExpressionsSupport 
           // Use the helper methods for in UpdateExpressionsSupport to generate expressions such
           // that nested fields can be updated.
           val updateOps =
-            m.resolvedActions.map { a => UpdateOperation(a.targetColNameParts, a.expr) }
+            m.resolvedActions.map { a =>
+              UpdateOperation(a.targetColNameParts, a.expr)
+            }
           generateUpdateExpressions(target.output, updateOps, conf.resolver)
         }
         val alignedActions: Seq[MergeAction] = alignedUpdateExprs.zip(target.output).map {
@@ -66,7 +71,7 @@ case class PreprocessTableMerge(conf: SQLConf) extends UpdateExpressionsSupport 
         }
         m.copy(m.condition, alignedActions)
 
-      case m: MergeIntoDeleteClause => m    // Delete does not need reordering
+      case m: MergeIntoDeleteClause => m // Delete does not need reordering
     }
 
     val processedNotMatched = notMatched.map { m =>
@@ -75,8 +80,7 @@ case class PreprocessTableMerge(conf: SQLConf) extends UpdateExpressionsSupport 
         if (a.targetColNameParts.size > 1) {
           throw DeltaErrors.nestedFieldNotSupported(
             "INSERT clause of MERGE operation",
-            a.targetColNameParts.mkString("`", "`.`", "`")
-          )
+            a.targetColNameParts.mkString("`", "`.`", "`"))
         }
       }
 
@@ -87,18 +91,21 @@ case class PreprocessTableMerge(conf: SQLConf) extends UpdateExpressionsSupport 
 
       // Reorder actions by the target column order.
       val alignedActions: Seq[MergeAction] = target.output.map { targetAttrib =>
-        m.resolvedActions.find { a =>
-          conf.resolver(targetAttrib.name, a.targetColNameParts.head)
-        }.map { a =>
-          MergeAction(Seq(targetAttrib.name), castIfNeeded(a.expr, targetAttrib.dataType))
-        }.getOrElse {
-          // If a target table column was not found in the INSERT columns and expressions,
-          // then throw exception as there must be an expression to set every target column.
-          throw new AnalysisException(
-            s"Unable to find the column '${targetAttrib.name}' of the target table from " +
-              s"the INSERT columns: ${targetColNames.mkString(", ")}. " +
-              s"INSERT clause must specify value for all the columns of the target table.")
-        }
+        m.resolvedActions
+          .find { a =>
+            conf.resolver(targetAttrib.name, a.targetColNameParts.head)
+          }
+          .map { a =>
+            MergeAction(Seq(targetAttrib.name), castIfNeeded(a.expr, targetAttrib.dataType))
+          }
+          .getOrElse {
+            // If a target table column was not found in the INSERT columns and expressions,
+            // then throw exception as there must be an expression to set every target column.
+            throw new AnalysisException(
+              s"Unable to find the column '${targetAttrib.name}' of the target table from " +
+                s"the INSERT columns: ${targetColNames.mkString(", ")}. " +
+                s"INSERT clause must specify value for all the columns of the target table.")
+          }
       }
       m.copy(m.condition, alignedActions)
     }
@@ -109,6 +116,11 @@ case class PreprocessTableMerge(conf: SQLConf) extends UpdateExpressionsSupport 
     }
 
     MergeIntoCommand(
-      source, target, tahoeFileIndex, condition, processedMatched, processedNotMatched)
+      source,
+      target,
+      tahoeFileIndex,
+      condition,
+      processedMatched,
+      processedNotMatched)
   }
 }

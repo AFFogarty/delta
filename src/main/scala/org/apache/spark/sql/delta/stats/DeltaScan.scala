@@ -34,9 +34,7 @@ case class DataSize(
 
 object DataSize {
   def apply(a: ArrayAccumulator): DataSize = {
-    DataSize(
-      Option(a.value(0)).filterNot(_ == -1),
-      Option(a.value(1)).filterNot(_ == -1))
+    DataSize(Option(a.value(0)).filterNot(_ == -1), Option(a.value(1)).filterNot(_ == -1))
   }
 }
 

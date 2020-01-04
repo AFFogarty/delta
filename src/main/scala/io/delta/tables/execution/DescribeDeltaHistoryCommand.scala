@@ -27,9 +27,12 @@ import org.apache.spark.sql.execution.command.RunnableCommand
 case class DescribeDeltaHistoryCommand(
     path: Option[String],
     table: Option[TableIdentifier],
-    limit: Option[Int]) extends RunnableCommand {
+    limit: Option[Int])
+    extends RunnableCommand {
 
-  override val output: Seq[Attribute] = Encoders.product[CommitInfo].schema
+  override val output: Seq[Attribute] = Encoders
+    .product[CommitInfo]
+    .schema
     .map(f => AttributeReference(f.name, f.dataType, f.nullable, f.metadata)())
 
   override def run(sparkSession: SparkSession): Seq[Row] = {

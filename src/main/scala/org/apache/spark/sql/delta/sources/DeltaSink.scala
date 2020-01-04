@@ -36,7 +36,9 @@ class DeltaSink(
     partitionColumns: Seq[String],
     outputMode: OutputMode,
     options: DeltaOptions)
-  extends Sink with ImplicitMetadataOperation with DeltaLogging {
+    extends Sink
+    with ImplicitMetadataOperation
+    with DeltaLogging {
 
   private val deltaLog = DeltaLog.forTable(sqlContext.sparkSession, path)
 
@@ -47,50 +49,51 @@ class DeltaSink(
 
   override protected val canMergeSchema: Boolean = options.canMergeSchema
 
-  override def addBatch(batchId: Long, data: DataFrame): Unit = deltaLog.withNewTransaction { txn =>
-    val queryId = sqlContext.sparkContext.getLocalProperty(StreamExecution.QUERY_ID_KEY)
-    assert(queryId != null)
+  override def addBatch(batchId: Long, data: DataFrame): Unit = deltaLog.withNewTransaction {
+    txn =>
+      val queryId = sqlContext.sparkContext.getLocalProperty(StreamExecution.QUERY_ID_KEY)
+      assert(queryId != null)
 
-    if (SchemaUtils.typeExistsRecursively(data.schema)(_.isInstanceOf[NullType])) {
-      throw DeltaErrors.streamWriteNullTypeException
-    }
+      if (SchemaUtils.typeExistsRecursively(data.schema)(_.isInstanceOf[NullType])) {
+        throw DeltaErrors.streamWriteNullTypeException
+      }
 
-    // If the batch reads the same Delta table as this sink is going to write to, then this
-    // write has dependencies. Then make sure that this commit set hasDependencies to true
-    // by injecting a read on the whole table. This needs to be done explicitly because
-    // MicroBatchExecution has already enforced all the data skipping (by forcing the generation
-    // of the executed plan) even before the transaction was started.
-    val selfScan = data.queryExecution.analyzed.collectFirst {
-      case DeltaTable(index) if index.deltaLog.isSameLogAs(txn.deltaLog) => true
-    }.nonEmpty
-    if (selfScan) {
-      txn.readWholeTable()
-    }
+      // If the batch reads the same Delta table as this sink is going to write to, then this
+      // write has dependencies. Then make sure that this commit set hasDependencies to true
+      // by injecting a read on the whole table. This needs to be done explicitly because
+      // MicroBatchExecution has already enforced all the data skipping (by forcing the generation
+      // of the executed plan) even before the transaction was started.
+      val selfScan = data.queryExecution.analyzed.collectFirst {
+        case DeltaTable(index) if index.deltaLog.isSameLogAs(txn.deltaLog) => true
+      }.nonEmpty
+      if (selfScan) {
+        txn.readWholeTable()
+      }
 
-    // Streaming sinks can't blindly overwrite schema. See Schema Management design doc for details
-    updateMetadata(
-      txn,
-      data,
-      partitionColumns,
-      configuration = Map.empty,
-      outputMode == OutputMode.Complete())
+      // Streaming sinks can't blindly overwrite schema. See Schema Management design doc for details
+      updateMetadata(
+        txn,
+        data,
+        partitionColumns,
+        configuration = Map.empty,
+        outputMode == OutputMode.Complete())
 
-    val currentVersion = txn.txnVersion(queryId)
-    if (currentVersion >= batchId) {
-      logInfo(s"Skipping already complete epoch $batchId, in query $queryId")
-      return
-    }
+      val currentVersion = txn.txnVersion(queryId)
+      if (currentVersion >= batchId) {
+        logInfo(s"Skipping already complete epoch $batchId, in query $queryId")
+        return
+      }
 
-    val deletedFiles = outputMode match {
-      case o if o == OutputMode.Complete() =>
-        deltaLog.assertRemovable()
-        txn.filterFiles().map(_.remove)
-      case _ => Nil
-    }
-    val newFiles = txn.writeFiles(data, Some(options))
-    val setTxn = SetTransaction(queryId, batchId, Some(deltaLog.clock.getTimeMillis())) :: Nil
-    val info = DeltaOperations.StreamingUpdate(outputMode, queryId, batchId)
-    txn.commit(setTxn ++ newFiles ++ deletedFiles, info)
+      val deletedFiles = outputMode match {
+        case o if o == OutputMode.Complete() =>
+          deltaLog.assertRemovable()
+          txn.filterFiles().map(_.remove)
+        case _ => Nil
+      }
+      val newFiles = txn.writeFiles(data, Some(options))
+      val setTxn = SetTransaction(queryId, batchId, Some(deltaLog.clock.getTimeMillis())) :: Nil
+      val info = DeltaOperations.StreamingUpdate(outputMode, queryId, batchId)
+      txn.commit(setTxn ++ newFiles ++ deletedFiles, info)
   }
 
   override def toString(): String = s"DeltaSink[$path]"

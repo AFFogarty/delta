@@ -32,6 +32,7 @@ case class DeltaConfig[T](
     validationFunction: T => Boolean,
     helpMessage: String,
     minimumProtocolVersion: Option[Protocol] = None) {
+
   /**
    * Recover the saved value of this configuration from `Metadata` or return the default if this
    * value hasn't been changed.
@@ -110,7 +111,8 @@ object DeltaConfigs extends DeltaLogging {
       validationFunction: T => Boolean,
       helpMessage: String,
       minimumProtocolVersion: Option[Protocol] = None): DeltaConfig[T] = {
-    val deltaConfig = DeltaConfig(s"delta.$key",
+    val deltaConfig = DeltaConfig(
+      s"delta.$key",
       defaultValue,
       fromString,
       validationFunction,
@@ -133,8 +135,7 @@ object DeltaConfigs extends DeltaLogging {
           }
       case keyvalue @ (key, _) =>
         if (entries.containsKey(key.toLowerCase(Locale.ROOT))) {
-          logConsole(
-            s"""
+          logConsole(s"""
               |You are trying to set a property the key of which is the same as Delta config: $key.
               |If you are trying to set a Delta config, prefix it with "delta.", e.g. 'delta.$key'.
             """.stripMargin)
@@ -155,11 +156,11 @@ object DeltaConfigs extends DeltaLogging {
       if (entries.containsKey(key) && entries.get(key).minimumProtocolVersion.isDefined) {
         val required = entries.get(key).minimumProtocolVersion.get
         if (current.minWriterVersion < required.minWriterVersion ||
-          current.minReaderVersion < required.minReaderVersion) {
+            current.minReaderVersion < required.minReaderVersion) {
           throw new AnalysisException(
             s"Setting the Delta config ${config._1} requires a protocol version of $required " +
-            s"or above, but the protocol version of the Delta table is $current. " +
-            s"Please upgrade the protocol version of the table before setting this config.")
+              s"or above, but the protocol version of the Delta table is $current. " +
+              s"Please upgrade the protocol version of the table before setting this config.")
         }
       }
     }
@@ -174,12 +175,13 @@ object DeltaConfigs extends DeltaLogging {
       protocol: Protocol): Map[String, String] = {
     import collection.JavaConverters._
 
-    val globalConfs = entries.asScala.flatMap { case (key, config) =>
-      val sqlConfKey = sqlConfPrefix + config.key.stripPrefix("delta.")
-      Option(sqlConfs.getConfString(sqlConfKey, null)) match {
-        case Some(default) => Some(config(default))
-        case _ => None
-      }
+    val globalConfs = entries.asScala.flatMap {
+      case (key, config) =>
+        val sqlConfKey = sqlConfPrefix + config.key.stripPrefix("delta.")
+        Option(sqlConfs.getConfString(sqlConfKey, null)) match {
+          case Some(default) => Some(config(default))
+          case _ => None
+        }
     }
 
     val updatedConf = globalConfs.toMap ++ tableConf
@@ -194,7 +196,8 @@ object DeltaConfigs extends DeltaLogging {
     propKeys.map {
       case key if key.toLowerCase(Locale.ROOT).startsWith("delta.") =>
         Option(entries.get(key.toLowerCase(Locale.ROOT).stripPrefix("delta.")))
-          .map(_.key).getOrElse(key)
+          .map(_.key)
+          .getOrElse(key)
       case key => key
     }
   }
@@ -206,7 +209,8 @@ object DeltaConfigs extends DeltaLogging {
     propKey.map {
       case key if key.toLowerCase(Locale.ROOT).startsWith("delta.") =>
         Option(entries.get(key.toLowerCase(Locale.ROOT).stripPrefix("delta.")))
-          .map(_.key).getOrElse(key)
+          .map(_.key)
+          .getOrElse(key)
       case key => key
     }
   }
@@ -230,7 +234,7 @@ object DeltaConfigs extends DeltaLogging {
     parseCalendarInterval,
     isPositiveDayTimeInterval,
     "needs to be provided as a calendar interval such as '2 weeks'. Months " +
-    "and years are not accepted. You may specify '365 days' for a year instead.")
+      "and years are not accepted. You may specify '365 days' for a year instead.")
 
   /**
    * The shortest duration we have to keep delta sample files around before deleting them.
@@ -283,8 +287,7 @@ object DeltaConfigs extends DeltaLogging {
     "true",
     _.toBoolean,
     _ => true,
-    "needs to be a boolean."
-  )
+    "needs to be a boolean.")
 
   /**
    * The shortest duration we have to keep logically deleted data files around before deleting them
@@ -304,7 +307,7 @@ object DeltaConfigs extends DeltaLogging {
     parseCalendarInterval,
     isPositiveDayTimeInterval,
     "needs to be provided as a calendar interval such as '2 weeks'. Months " +
-    "and years are not accepted. You may specify '365 days' for a year instead.")
+      "and years are not accepted. You may specify '365 days' for a year instead.")
 
   /**
    * Whether to use a random prefix in a file path instead of partition information. This is

@@ -49,6 +49,7 @@ import org.apache.spark.sql.delta.util.DateTimeUtils.instantToMicros
  * Forked from [[org.apache.spark.sql.catalyst.util.TimestampFormatter]]
  */
 sealed trait TimestampFormatter extends Serializable {
+
   /**
    * Parses a timestamp in a string and converts it to microseconds.
    *
@@ -65,10 +66,9 @@ sealed trait TimestampFormatter extends Serializable {
   def format(us: Long): String
 }
 
-class Iso8601TimestampFormatter(
-    pattern: String,
-    timeZone: TimeZone,
-    locale: Locale) extends TimestampFormatter with DateTimeFormatterHelper {
+class Iso8601TimestampFormatter(pattern: String, timeZone: TimeZone, locale: Locale)
+    extends TimestampFormatter
+    with DateTimeFormatterHelper {
   @transient
   protected lazy val formatter = getOrCreateFormatter(pattern, locale)
 
@@ -98,7 +98,7 @@ class Iso8601TimestampFormatter(
  * @param timeZone the time zone in which the formatter parses or format timestamps
  */
 class FractionTimestampFormatter(timeZone: TimeZone)
-  extends Iso8601TimestampFormatter("", timeZone, TimestampFormatter.defaultLocale) {
+    extends Iso8601TimestampFormatter("", timeZone, TimestampFormatter.defaultLocale) {
 
   @transient
   override protected lazy val formatter = DateTimeFormatterHelper.fractionFormatter

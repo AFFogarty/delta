@@ -19,8 +19,6 @@ package com.databricks.spark.util
 /**
  * This file contains stub implementation for logging that exists in Databricks.
  */
-
-
 class TagDefinition
 
 object TagDefinitions {
@@ -52,9 +50,7 @@ trait DatabricksLogging {
       blob: String = null,
       forceSample: Boolean = false,
       trimBlob: Boolean = true,
-      silent: Boolean = false): Unit = {
-
-  }
+      silent: Boolean = false): Unit = {}
 
   def recordEvent(
       metric: MetricDefinition,

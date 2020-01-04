@@ -31,7 +31,10 @@ trait PostCommitHook {
   val name: String
 
   /** Executes the hook. */
-  def run(spark: SparkSession, txn: OptimisticTransactionImpl, committedActions: Seq[Action]): Unit
+  def run(
+      spark: SparkSession,
+      txn: OptimisticTransactionImpl,
+      committedActions: Seq[Action]): Unit
 
   /**
    * Handle any error caused while running the hook. By default, all errors are ignored as

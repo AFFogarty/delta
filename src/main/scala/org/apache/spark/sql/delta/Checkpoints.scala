@@ -43,18 +43,15 @@ import org.apache.spark.util.SerializableConfiguration
  * @param parts the number of parts when the checkpoint has multiple parts. None if this is a
  *              singular checkpoint
  */
-case class CheckpointMetaData(
-    version: Long,
-    size: Long,
-    parts: Option[Int])
+case class CheckpointMetaData(version: Long, size: Long, parts: Option[Int])
 
 /**
  * A class to help with comparing checkpoints with each other, where we may have had concurrent
  * writers that checkpoint with different number of parts.
  */
-case class CheckpointInstance(
-    version: Long,
-    numParts: Option[Int]) extends Ordered[CheckpointInstance] {
+case class CheckpointInstance(version: Long, numParts: Option[Int])
+    extends Ordered[CheckpointInstance] {
+
   /**
    * Due to lexicographic sorting, a version with more parts will appear after a version with
    * less parts during file listing. We use that logic here as well.
@@ -62,7 +59,7 @@ case class CheckpointInstance(
   def isEarlierThan(other: CheckpointInstance): Boolean = {
     if (other == CheckpointInstance.MaxValue) return true
     version < other.version ||
-        (version == other.version && numParts.forall(_ < other.numParts.getOrElse(1)))
+    (version == other.version && numParts.forall(_ < other.numParts.getOrElse(1)))
   }
 
   def isNotLaterThan(other: CheckpointInstance): Boolean = {
@@ -144,8 +141,10 @@ trait Checkpoints extends DeltaLogging {
       case _: FileNotFoundException =>
         None
       case NonFatal(e) if tries < 3 =>
-        logWarning(s"Failed to parse $LAST_CHECKPOINT. This may happen if there was an error " +
-          "during read operation, or a file appears to be partial. Sleeping and trying again.", e)
+        logWarning(
+          s"Failed to parse $LAST_CHECKPOINT. This may happen if there was an error " +
+            "during read operation, or a file appears to be partial. Sleeping and trying again.",
+          e)
         Thread.sleep(1000)
         loadMetadataFromFile(tries + 1)
       case NonFatal(e) =>
@@ -171,12 +170,13 @@ trait Checkpoints extends DeltaLogging {
   protected def findLastCompleteCheckpoint(cv: CheckpointInstance): Option[CheckpointInstance] = {
     var cur = math.max(cv.version, 0L)
     while (cur >= 0) {
-      val checkpoints = store.listFrom(checkpointPrefix(logPath, math.max(0, cur - 1000)))
-          .map(_.getPath)
-          .filter(isCheckpointFile)
-          .map(CheckpointInstance(_))
-          .takeWhile(tv => (cur == 0 || tv.version <= cur) && tv.isEarlierThan(cv))
-          .toArray
+      val checkpoints = store
+        .listFrom(checkpointPrefix(logPath, math.max(0, cur - 1000)))
+        .map(_.getPath)
+        .filter(isCheckpointFile)
+        .map(CheckpointInstance(_))
+        .takeWhile(tv => (cur == 0 || tv.version <= cur) && tv.isEarlierThan(cv))
+        .toArray
       val lastCheckpoint = getLatestCompleteCheckpointFromList(checkpoints, cv)
       if (lastCheckpoint.isDefined) {
         return lastCheckpoint
@@ -203,6 +203,7 @@ trait Checkpoints extends DeltaLogging {
 }
 
 object Checkpoints {
+
   /**
    * Writes out the contents of a [[Snapshot]] into a checkpoint file that
    * can be used to short-circuit future replays of the log.
@@ -219,7 +220,8 @@ object Checkpoints {
     val (factory, serConf) = {
       val format = new ParquetFileFormat()
       val job = Job.getInstance()
-      (format.prepareWrite(spark, job, Map.empty, Action.logSchema),
+      (
+        format.prepareWrite(spark, job, Map.empty, Action.logSchema),
         new SerializableConfiguration(job.getConfiguration))
     }
 
@@ -250,7 +252,9 @@ object Checkpoints {
             // speculation, stage retry), so generate the temp path here to avoid two tasks
             // using the same path.
             val tempPath = new Path(p.getParent, s".${p.getName}.${UUID.randomUUID}.tmp")
-            DeltaFileOperations.registerTempFileDeletionTaskFailureListener(serConf.value, tempPath)
+            DeltaFileOperations.registerTempFileDeletionTaskFailureListener(
+              serConf.value,
+              tempPath)
             tempPath.toString
           } else {
             path
@@ -279,7 +283,9 @@ object Checkpoints {
             }
         }
         Iterator(writtenPath)
-      }.collect().head
+      }
+      .collect()
+      .head
 
     if (useRename) {
       val src = new Path(writtenPath)

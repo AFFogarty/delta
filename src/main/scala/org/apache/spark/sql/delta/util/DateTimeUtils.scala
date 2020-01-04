@@ -46,7 +46,6 @@ import java.util.concurrent.TimeUnit._
  * Forked from [[org.apache.spark.sql.catalyst.util.DateTimeUtils]].
  * Only included the methods that are used by Delta and added after Spark 2.4.
  */
-
 /**
  * Helper functions for converting between internal and external date and time representations.
  * Dates are exposed externally as java.sql.Date and are represented internally as the number of

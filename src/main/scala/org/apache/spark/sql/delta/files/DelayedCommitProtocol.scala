@@ -37,12 +37,10 @@ import org.apache.spark.sql.types.StringType
 /**
  * Writes out the files to `path` and returns a list of them in `addedStatuses`.
  */
-class DelayedCommitProtocol(
-      jobId: String,
-      path: String,
-      randomPrefixLength: Option[Int])
-  extends FileCommitProtocol
-    with Serializable with Logging {
+class DelayedCommitProtocol(jobId: String, path: String, randomPrefixLength: Option[Int])
+    extends FileCommitProtocol
+    with Serializable
+    with Logging {
 
   // Track the list of files added by a task, only used on the executors.
   @transient private var addedFiles: ArrayBuffer[(Map[String, String], String)] = _
@@ -50,10 +48,7 @@ class DelayedCommitProtocol(
 
   val timestampPartitionPattern = "yyyy-MM-dd HH:mm:ss[.S]"
 
-
-  override def setupJob(jobContext: JobContext): Unit = {
-
-  }
+  override def setupJob(jobContext: JobContext): Unit = {}
 
   override def commitJob(jobContext: JobContext, taskCommits: Seq[TaskCommitMessage]): Unit = {
     val fileStatuses = taskCommits.flatMap(_.obj.asInstanceOf[Seq[AddFile]]).toArray
@@ -96,14 +91,12 @@ class DelayedCommitProtocol(
           timestampFormatter)
         ._1
         .get
-    parsedPartition
-        .columnNames
-        .zip(
-          parsedPartition
-            .literals
-            .map(l => Cast(l, StringType).eval())
-            .map(Option(_).map(_.toString).orNull))
-        .toMap
+    parsedPartition.columnNames
+      .zip(
+        parsedPartition.literals
+          .map(l => Cast(l, StringType).eval())
+          .map(Option(_).map(_.toString).orNull))
+      .toMap
   }
 
   /** Generates a string created of `randomPrefixLength` alphanumeric characters. */
@@ -112,23 +105,31 @@ class DelayedCommitProtocol(
   }
 
   override def newTaskTempFile(
-      taskContext: TaskAttemptContext, dir: Option[String], ext: String): String = {
+      taskContext: TaskAttemptContext,
+      dir: Option[String],
+      ext: String): String = {
     val filename = getFileName(taskContext, ext)
     val partitionValues = dir.map(parsePartitions).getOrElse(Map.empty[String, String])
-    val relativePath = randomPrefixLength.map { prefixLength =>
-      getRandomPrefix(prefixLength) // Generate a random prefix as a first choice
-    }.orElse {
-      dir // or else write into the partition directory if it is partitioned
-    }.map { subDir =>
-      new Path(subDir, filename)
-    }.getOrElse(new Path(filename)) // or directly write out to the output path
+    val relativePath = randomPrefixLength
+      .map { prefixLength =>
+        getRandomPrefix(prefixLength) // Generate a random prefix as a first choice
+      }
+      .orElse {
+        dir // or else write into the partition directory if it is partitioned
+      }
+      .map { subDir =>
+        new Path(subDir, filename)
+      }
+      .getOrElse(new Path(filename)) // or directly write out to the output path
 
     addedFiles.append((partitionValues, relativePath.toUri.toString))
     new Path(path, relativePath).toString
   }
 
   override def newTaskTempFileAbsPath(
-      taskContext: TaskAttemptContext, absoluteDir: String, ext: String): String = {
+      taskContext: TaskAttemptContext,
+      absoluteDir: String,
+      ext: String): String = {
     throw new UnsupportedOperationException(
       s"$this does not support adding files with an absolute path")
   }

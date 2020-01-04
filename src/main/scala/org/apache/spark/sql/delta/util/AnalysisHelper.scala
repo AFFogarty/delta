@@ -25,8 +25,7 @@ import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 trait AnalysisHelper {
   import AnalysisHelper._
 
-  protected def tryResolveReferences(
-      sparkSession: SparkSession)(
+  protected def tryResolveReferences(sparkSession: SparkSession)(
       expr: Expression,
       planContainingExpr: LogicalPlan): Expression = {
     val newPlan = FakeLogicalPlan(expr, planContainingExpr.children)
@@ -37,15 +36,16 @@ trait AnalysisHelper {
       case _ =>
         // This is unexpected
         throw DeltaErrors.analysisException(
-          s"Could not resolve expression $expr", plan = Option(planContainingExpr))
+          s"Could not resolve expression $expr",
+          plan = Option(planContainingExpr))
     }
   }
 }
 
 object AnalysisHelper {
+
   /** LogicalPlan to help resolve the given expression */
-  case class FakeLogicalPlan(expr: Expression, children: Seq[LogicalPlan])
-    extends LogicalPlan {
+  case class FakeLogicalPlan(expr: Expression, children: Seq[LogicalPlan]) extends LogicalPlan {
     override def output: Seq[Attribute] = Nil
   }
 }

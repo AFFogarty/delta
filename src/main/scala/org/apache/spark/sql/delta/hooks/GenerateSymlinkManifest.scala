@@ -39,7 +39,6 @@ import org.apache.spark.util.SerializableConfiguration
  */
 object GenerateSymlinkManifest extends GenerateSymlinkManifestImpl
 
-
 trait GenerateSymlinkManifestImpl extends PostCommitHook with DeltaLogging with Serializable {
   val CONFIG_NAME_ROOT = "compatibility.symlinkFormatManifest"
 
@@ -93,7 +92,10 @@ trait GenerateSymlinkManifestImpl extends PostCommitHook with DeltaLogging with 
       val removedFileNames =
         spark.createDataset(actions.collect { case r: RemoveFile => r.path }).toDF("path")
       val partitionValuesOfRemovedFiles =
-        txnReadSnapshot.allFiles.join(removedFileNames, "path").select("partitionValues").persist()
+        txnReadSnapshot.allFiles
+          .join(removedFileNames, "path")
+          .select("partitionValues")
+          .persist()
       try {
         val partitionsOfRemovedFiles =
           partitionValuesOfRemovedFiles.as[Map[String, String]].collect().toSet
@@ -108,17 +110,20 @@ trait GenerateSymlinkManifestImpl extends PostCommitHook with DeltaLogging with 
         // Find the current partitions
         val currentPartitionRelativeDirs =
           withRelativePartitionDir(spark, partitionCols, currentSnapshot.allFiles)
-            .select("relativePartitionDir").distinct()
+            .select("relativePartitionDir")
+            .distinct()
 
         // Find the partitions that became empty and delete their manifests
         val partitionRelativeDirsOfRemovedFiles =
           withRelativePartitionDir(spark, partitionCols, partitionValuesOfRemovedFiles)
-            .select("relativePartitionDir").distinct()
+            .select("relativePartitionDir")
+            .distinct()
 
         val partitionsThatBecameEmpty =
-          partitionRelativeDirsOfRemovedFiles.join(
-            currentPartitionRelativeDirs, Seq("relativePartitionDir"), "leftanti")
-            .as[String].collect()
+          partitionRelativeDirsOfRemovedFiles
+            .join(currentPartitionRelativeDirs, Seq("relativePartitionDir"), "leftanti")
+            .as[String]
+            .collect()
 
         (filesInUpdatedPartitions, partitionsThatBecameEmpty)
       } finally {
@@ -151,57 +156,59 @@ trait GenerateSymlinkManifestImpl extends PostCommitHook with DeltaLogging with 
    * Generate manifest files for all the partitions in the table. Note, this will ensure that
    * that stale and unnecessary files will be vacuumed.
    */
-  def generateFullManifest(
-      spark: SparkSession,
-      deltaLog: DeltaLog): Unit = recordManifestGeneration(deltaLog, full = true) {
+  def generateFullManifest(spark: SparkSession, deltaLog: DeltaLog): Unit =
+    recordManifestGeneration(deltaLog, full = true) {
 
-    val snapshot = deltaLog.update(stalenessAcceptable = false)
-    val partitionCols = snapshot.metadata.partitionColumns
-    val manifestRootDirPath = new Path(deltaLog.dataPath, MANIFEST_LOCATION).toString
-    val hadoopConf = new SerializableConfiguration(spark.sessionState.newHadoopConf())
+      val snapshot = deltaLog.update(stalenessAcceptable = false)
+      val partitionCols = snapshot.metadata.partitionColumns
+      val manifestRootDirPath = new Path(deltaLog.dataPath, MANIFEST_LOCATION).toString
+      val hadoopConf = new SerializableConfiguration(spark.sessionState.newHadoopConf())
 
-    // Update manifest files of the current partitions
-    val newManifestPartitionRelativePaths = writeManifestFiles(
-      deltaLog.dataPath,
-      manifestRootDirPath,
-      snapshot.allFiles,
-      partitionCols,
-      hadoopConf)
+      // Update manifest files of the current partitions
+      val newManifestPartitionRelativePaths = writeManifestFiles(
+        deltaLog.dataPath,
+        manifestRootDirPath,
+        snapshot.allFiles,
+        partitionCols,
+        hadoopConf)
 
-    // Get the existing manifest files as relative partition paths, that is,
-    // [ "col1=0/col2=0", "col1=1/col2=1", "col1=2/col2=2" ]
-    val fs = deltaLog.dataPath.getFileSystem(hadoopConf.value)
-    val existingManifestPartitionRelativePaths = {
-      val manifestRootDirAbsPath = fs.makeQualified(new Path(manifestRootDirPath))
-      if (fs.exists(manifestRootDirAbsPath)) {
-        val index = new InMemoryFileIndex(spark, Seq(manifestRootDirAbsPath), Map.empty, None)
-        val prefixToStrip = manifestRootDirAbsPath.toUri.getPath
-        index.inputFiles.map { p =>
-          // Remove root directory "rootDir" path from the manifest file paths like
-          // "rootDir/col1=0/col2=0/manifest" to get the relative partition dir "col1=0/col2=0".
-          // Note: It important to compare only the "path" in the URI and not the user info in it.
-          // In s3a://access-key:secret-key@host/path, the access-key and secret-key may change
-          // unknowingly to `\` and `%` encoding between the root dir and file names generated
-          // by listing.
-          val relativeManifestFilePath =
-            new Path(p).toUri.getPath.stripPrefix(prefixToStrip).stripPrefix(Path.SEPARATOR)
-          new Path(relativeManifestFilePath).getParent.toString // returns "col1=0/col2=0"
-        }.filterNot(_.trim.isEmpty).toSet
-      } else Set.empty[String]
+      // Get the existing manifest files as relative partition paths, that is,
+      // [ "col1=0/col2=0", "col1=1/col2=1", "col1=2/col2=2" ]
+      val fs = deltaLog.dataPath.getFileSystem(hadoopConf.value)
+      val existingManifestPartitionRelativePaths = {
+        val manifestRootDirAbsPath = fs.makeQualified(new Path(manifestRootDirPath))
+        if (fs.exists(manifestRootDirAbsPath)) {
+          val index = new InMemoryFileIndex(spark, Seq(manifestRootDirAbsPath), Map.empty, None)
+          val prefixToStrip = manifestRootDirAbsPath.toUri.getPath
+          index.inputFiles
+            .map { p =>
+              // Remove root directory "rootDir" path from the manifest file paths like
+              // "rootDir/col1=0/col2=0/manifest" to get the relative partition dir "col1=0/col2=0".
+              // Note: It important to compare only the "path" in the URI and not the user info in it.
+              // In s3a://access-key:secret-key@host/path, the access-key and secret-key may change
+              // unknowingly to `\` and `%` encoding between the root dir and file names generated
+              // by listing.
+              val relativeManifestFilePath =
+                new Path(p).toUri.getPath.stripPrefix(prefixToStrip).stripPrefix(Path.SEPARATOR)
+              new Path(relativeManifestFilePath).getParent.toString // returns "col1=0/col2=0"
+            }
+            .filterNot(_.trim.isEmpty)
+            .toSet
+        } else Set.empty[String]
+      }
+
+      // Delete manifest files for partitions that are not in current and so weren't overwritten
+      val manifestFilePartitionsToDelete =
+        existingManifestPartitionRelativePaths.diff(newManifestPartitionRelativePaths)
+      deleteManifestFiles(manifestRootDirPath, manifestFilePartitionsToDelete, hadoopConf)
+
+      // Post stats
+      val stats = SymlinkManifestStats(
+        filesWritten = newManifestPartitionRelativePaths.size,
+        filesDeleted = manifestFilePartitionsToDelete.size,
+        partitioned = partitionCols.nonEmpty)
+      recordDeltaEvent(deltaLog, s"$FULL_MANIFEST_OP_TYPE.stats", data = stats)
     }
-
-    // Delete manifest files for partitions that are not in current and so weren't overwritten
-    val manifestFilePartitionsToDelete =
-      existingManifestPartitionRelativePaths.diff(newManifestPartitionRelativePaths)
-    deleteManifestFiles(manifestRootDirPath, manifestFilePartitionsToDelete, hadoopConf)
-
-    // Post stats
-    val stats = SymlinkManifestStats(
-      filesWritten = newManifestPartitionRelativePaths.size,
-      filesDeleted = manifestFilePartitionsToDelete.size,
-      partitioned = partitionCols.nonEmpty)
-    recordDeltaEvent(deltaLog, s"$FULL_MANIFEST_OP_TYPE.stats", data = stats)
-  }
 
   /**
    * Write the manifest files and return the partition relative paths of the manifests written.
@@ -229,8 +236,8 @@ trait GenerateSymlinkManifestImpl extends PostCommitHook with DeltaLogging with 
 
     /** Write the data file relative paths to manifestDirAbsPath/manifest as absolute paths */
     def writeSingleManifestFile(
-      manifestDirAbsPath: String,
-      dataFileRelativePaths: Iterator[String]): Unit = {
+        manifestDirAbsPath: String,
+        dataFileRelativePaths: Iterator[String]): Unit = {
 
       val manifestFilePath = new Path(manifestDirAbsPath, "manifest")
       val fs = manifestFilePath.getFileSystem(hadoopConf.value)
@@ -245,20 +252,26 @@ trait GenerateSymlinkManifestImpl extends PostCommitHook with DeltaLogging with 
 
     val newManifestPartitionRelativePaths =
       withRelativePartitionDir(spark, partitionCols, fileNamesForManifest)
-        .select("relativePartitionDir", "path").as[(String, String)]
-        .groupByKey(_._1).mapGroups {
+        .select("relativePartitionDir", "path")
+        .as[(String, String)]
+        .groupByKey(_._1)
+        .mapGroups {
           (relativePartitionDir: String, relativeDataFilePath: Iterator[(String, String)]) =>
             val manifestPartitionDirAbsPath = {
-              if (relativePartitionDir == null || relativePartitionDir.isEmpty) manifestRootDirPath
+              if (relativePartitionDir == null || relativePartitionDir.isEmpty)
+                manifestRootDirPath
               else new Path(manifestRootDirPath, relativePartitionDir).toString
             }
             writeSingleManifestFile(manifestPartitionDirAbsPath, relativeDataFilePath.map(_._2))
             relativePartitionDir
-        }.collect().toSet
+        }
+        .collect()
+        .toSet
 
-    logInfo(s"Generated manifest partitions for $deltaLogDataPath " +
-      s"[${newManifestPartitionRelativePaths.size}]:\n\t" +
-      newManifestPartitionRelativePaths.mkString("\n\t"))
+    logInfo(
+      s"Generated manifest partitions for $deltaLogDataPath " +
+        s"[${newManifestPartitionRelativePaths.size}]:\n\t" +
+        newManifestPartitionRelativePaths.mkString("\n\t"))
 
     newManifestPartitionRelativePaths
   }
@@ -282,8 +295,9 @@ trait GenerateSymlinkManifestImpl extends PostCommitHook with DeltaLogging with 
       fs.delete(absPathToDelete, true)
     }
 
-    logInfo(s"Deleted manifest partitions [${partitionRelativePathsToDelete.size}]:\n\t" +
-      partitionRelativePathsToDelete.mkString("\n\t"))
+    logInfo(
+      s"Deleted manifest partitions [${partitionRelativePathsToDelete.size}]:\n\t" +
+        partitionRelativePathsToDelete.mkString("\n\t"))
   }
 
   /**
@@ -328,21 +342,19 @@ trait GenerateSymlinkManifestImpl extends PostCommitHook with DeltaLogging with 
   /** Expression that given partition columns builds a path string like: col1=val/col2=val/... */
   protected def generatePartitionPathExpression(
       partitionColNameToAttrib: Seq[(String, Attribute)],
-      timeZoneId: String): Expression = Concat(
+      timeZoneId: String): Expression =
+    Concat(partitionColNameToAttrib.zipWithIndex.flatMap {
+      case ((colName, col), i) =>
+        val partitionName = ScalaUDF(
+          ExternalCatalogUtils.getPartitionPathString _,
+          StringType,
+          Seq(Literal(colName), Cast(col, StringType, Option(timeZoneId))),
+          Seq(true, true))
+        if (i == 0) Seq(partitionName) else Seq(Literal(Path.SEPARATOR), partitionName)
+    })
 
-
-    partitionColNameToAttrib.zipWithIndex.flatMap { case ((colName, col), i) =>
-      val partitionName = ScalaUDF(
-        ExternalCatalogUtils.getPartitionPathString _,
-        StringType,
-        Seq(Literal(colName), Cast(col, StringType, Option(timeZoneId))),
-        Seq(true, true))
-      if (i == 0) Seq(partitionName) else Seq(Literal(Path.SEPARATOR), partitionName)
-    }
-  )
-
-
-  private def recordManifestGeneration(deltaLog: DeltaLog, full: Boolean)(thunk: => Unit): Unit = {
+  private def recordManifestGeneration(deltaLog: DeltaLog, full: Boolean)(
+      thunk: => Unit): Unit = {
     val (opType, manifestType) =
       if (full) FULL_MANIFEST_OP_TYPE -> "full"
       else INCREMENTAL_MANIFEST_OP_TYPE -> "incremental"
@@ -353,8 +365,5 @@ trait GenerateSymlinkManifestImpl extends PostCommitHook with DeltaLogging with 
     }
   }
 
-  case class SymlinkManifestStats(
-      filesWritten: Int,
-      filesDeleted: Int,
-      partitioned: Boolean)
+  case class SymlinkManifestStats(filesWritten: Int, filesDeleted: Int, partitioned: Boolean)
 }

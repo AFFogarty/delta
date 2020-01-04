@@ -46,68 +46,71 @@ object DeltaOperations {
   case class Write(
       mode: SaveMode,
       partitionBy: Option[Seq[String]] = None,
-      predicate: Option[String] = None) extends Operation("WRITE") {
+      predicate: Option[String] = None)
+      extends Operation("WRITE") {
     override val parameters: Map[String, Any] = Map("mode" -> mode.name()) ++
       partitionBy.map("partitionBy" -> JsonUtils.toJson(_)) ++
       predicate.map("predicate" -> _)
 
-    override val metricParameters: Seq[String] = Seq(
-      "numFiles",
-      "numOutputBytes",
-      "numOutputRows")
+    override val metricParameters: Seq[String] =
+      Seq("numFiles", "numOutputBytes", "numOutputRows")
   }
+
   /** Recorded during streaming inserts. */
-  case class StreamingUpdate(
-      outputMode: OutputMode,
-      queryId: String,
-      epochId: Long) extends Operation("STREAMING UPDATE") {
+  case class StreamingUpdate(outputMode: OutputMode, queryId: String, epochId: Long)
+      extends Operation("STREAMING UPDATE") {
     override val parameters: Map[String, Any] =
-      Map("outputMode" -> outputMode.toString, "queryId" -> queryId, "epochId" -> epochId.toString)
+      Map(
+        "outputMode" -> outputMode.toString,
+        "queryId" -> queryId,
+        "epochId" -> epochId.toString)
   }
+
   /** Recorded while deleting certain partitions. */
   case class Delete(predicate: Seq[String]) extends Operation("DELETE") {
     override val parameters: Map[String, Any] = Map("predicate" -> JsonUtils.toJson(predicate))
   }
+
   /** Recorded when truncating the table. */
   case class Truncate() extends Operation("TRUNCATE") {
     override val parameters: Map[String, Any] = Map.empty
   }
+
   /** Recorded when fscking the table. */
   case class Fsck(numRemovedFiles: Long) extends Operation("FSCK") {
-    override val parameters: Map[String, Any] = Map(
-      "numRemovedFiles" -> numRemovedFiles
-    )
+    override val parameters: Map[String, Any] = Map("numRemovedFiles" -> numRemovedFiles)
   }
+
   /** Recorded when converting a table into a Delta table. */
   case class Convert(
       numFiles: Long,
       partitionBy: Seq[String],
       collectStats: Boolean,
-      catalogTable: Option[String]) extends Operation("CONVERT") {
+      catalogTable: Option[String])
+      extends Operation("CONVERT") {
     override val parameters: Map[String, Any] = Map(
       "numFiles" -> numFiles,
       "partitionedBy" -> JsonUtils.toJson(partitionBy),
       "collectStats" -> collectStats) ++ catalogTable.map("catalogTable" -> _)
   }
+
   /** Recorded when optimizing the table. */
-  case class Optimize(
-      predicate: Seq[String],
-      zOrderBy: Seq[String],
-      batchId: Int,
-      auto: Boolean) extends Operation("OPTIMIZE") {
+  case class Optimize(predicate: Seq[String], zOrderBy: Seq[String], batchId: Int, auto: Boolean)
+      extends Operation("OPTIMIZE") {
     override val parameters: Map[String, Any] = Map(
       "predicate" -> JsonUtils.toJson(predicate),
       "zOrderBy" -> JsonUtils.toJson(zOrderBy),
       "batchId" -> JsonUtils.toJson(batchId),
-      "auto" -> auto
-    )
+      "auto" -> auto)
   }
+
   /** Recorded when a merge operation is committed to the table. */
   case class Merge(
       predicate: Option[String],
       updatePredicate: Option[String],
       deletePredicate: Option[String],
-      insertPredicate: Option[String]) extends Operation("MERGE") {
+      insertPredicate: Option[String])
+      extends Operation("MERGE") {
     override val parameters: Map[String, Any] = {
       predicate.map("predicate" -> _).toMap ++
         updatePredicate.map("updatePredicate" -> _).toMap ++
@@ -124,10 +127,12 @@ object DeltaOperations {
       "numTargetFilesAdded",
       "numTargetFilesRemoved")
   }
+
   /** Recorded when an update operation is committed to the table. */
   case class Update(predicate: Option[String]) extends Operation("UPDATE") {
     override val parameters: Map[String, Any] = predicate.map("predicate" -> _).toMap
   }
+
   /** Recorded when the table is created. */
   case class CreateTable(metadata: Metadata, isManaged: Boolean, asSelect: Boolean = false)
       extends Operation("CREATE TABLE" + s"${if (asSelect) " AS SELECT" else ""}") {
@@ -137,69 +142,73 @@ object DeltaOperations {
       "partitionBy" -> JsonUtils.toJson(metadata.partitionColumns),
       "properties" -> JsonUtils.toJson(metadata.configuration))
   }
+
   /** Recorded when the table is replaced. */
   case class ReplaceTable(
       metadata: Metadata,
       isManaged: Boolean,
       orCreate: Boolean,
       asSelect: Boolean = false)
-    extends Operation(s"${if (orCreate) "CREATE OR " else ""}REPLACE TABLE" +
-      s"${if (asSelect) " AS SELECT" else ""}") {
+      extends Operation(
+        s"${if (orCreate) "CREATE OR " else ""}REPLACE TABLE" +
+          s"${if (asSelect) " AS SELECT" else ""}") {
     override val parameters: Map[String, Any] = Map(
       "isManaged" -> isManaged.toString,
       "description" -> Option(metadata.description),
       "partitionBy" -> JsonUtils.toJson(metadata.partitionColumns),
       "properties" -> JsonUtils.toJson(metadata.configuration))
   }
+
   /** Recorded when the table properties are set. */
-  case class SetTableProperties(
-      properties: Map[String, String]) extends Operation("SET TBLPROPERTIES") {
+  case class SetTableProperties(properties: Map[String, String])
+      extends Operation("SET TBLPROPERTIES") {
     override val parameters: Map[String, Any] = Map("properties" -> JsonUtils.toJson(properties))
   }
-  /** Recorded when the table properties are unset. */
-  case class UnsetTableProperties(
-      propKeys: Seq[String],
-      ifExists: Boolean) extends Operation("UNSET TBLPROPERTIES") {
-    override val parameters: Map[String, Any] = Map(
-      "properties" -> JsonUtils.toJson(propKeys),
-      "ifExists" -> ifExists)
-  }
-  /** Recorded when columns are added. */
-  case class AddColumns(
-      colsToAdd: Seq[QualifiedColTypeWithPositionForLog]) extends Operation("ADD COLUMNS") {
 
-    override val parameters: Map[String, Any] = Map(
-      "columns" -> JsonUtils.toJson(colsToAdd.map {
-        case QualifiedColTypeWithPositionForLog(columnPath, column, colPosition) =>
-          Map(
-            "column" -> structFieldToMap(columnPath, column)
-          ) ++ colPosition.map("position" -> _.toString)
-      }))
+  /** Recorded when the table properties are unset. */
+  case class UnsetTableProperties(propKeys: Seq[String], ifExists: Boolean)
+      extends Operation("UNSET TBLPROPERTIES") {
+    override val parameters: Map[String, Any] =
+      Map("properties" -> JsonUtils.toJson(propKeys), "ifExists" -> ifExists)
   }
+
+  /** Recorded when columns are added. */
+  case class AddColumns(colsToAdd: Seq[QualifiedColTypeWithPositionForLog])
+      extends Operation("ADD COLUMNS") {
+
+    override val parameters: Map[String, Any] = Map("columns" -> JsonUtils.toJson(colsToAdd.map {
+      case QualifiedColTypeWithPositionForLog(columnPath, column, colPosition) =>
+        Map("column" -> structFieldToMap(columnPath, column)) ++ colPosition.map(
+          "position" -> _.toString)
+    }))
+  }
+
   /** Recorded when columns are changed. */
   case class ChangeColumn(
       columnPath: Seq[String],
       columnName: String,
       newColumn: StructField,
-      colPosition: Option[String]) extends Operation("CHANGE COLUMN") {
+      colPosition: Option[String])
+      extends Operation("CHANGE COLUMN") {
 
     override val parameters: Map[String, Any] = Map(
-      "column" -> JsonUtils.toJson(structFieldToMap(columnPath, newColumn))
-    ) ++ colPosition.map("position" -> _)
+      "column" -> JsonUtils.toJson(structFieldToMap(columnPath, newColumn))) ++ colPosition.map(
+      "position" -> _)
   }
+
   /** Recorded when columns are replaced. */
-  case class ReplaceColumns(
-      columns: Seq[StructField]) extends Operation("REPLACE COLUMNS") {
+  case class ReplaceColumns(columns: Seq[StructField]) extends Operation("REPLACE COLUMNS") {
 
     override val parameters: Map[String, Any] = Map(
       "columns" -> JsonUtils.toJson(columns.map(structFieldToMap(Seq.empty, _))))
   }
 
   case class UpgradeProtocol(newProtocol: Protocol) extends Operation("UPGRADE PROTOCOL") {
-    override val parameters: Map[String, Any] = Map("newProtocol" -> JsonUtils.toJson(Map(
-      "minReaderVersion" -> newProtocol.minReaderVersion,
-      "minWriterVersion" -> newProtocol.minWriterVersion
-    )))
+    override val parameters: Map[String, Any] = Map(
+      "newProtocol" -> JsonUtils.toJson(
+        Map(
+          "minReaderVersion" -> newProtocol.minReaderVersion,
+          "minWriterVersion" -> newProtocol.minWriterVersion)))
   }
 
   object ManualUpdate extends Operation("Manual Update") {
@@ -210,10 +219,8 @@ object DeltaOperations {
     override val parameters: Map[String, Any] = Map.empty
   }
 
-  case class UpdateColumnMetadata(
-      operationName: String,
-      columns: Seq[(Seq[String], StructField)])
-    extends Operation(operationName) {
+  case class UpdateColumnMetadata(operationName: String, columns: Seq[(Seq[String], StructField)])
+      extends Operation(operationName) {
     override val parameters: Map[String, Any] = {
       Map("columns" -> JsonUtils.toJson(columns.map {
         case (path, field) => structFieldToMap(path, field)
@@ -223,34 +230,29 @@ object DeltaOperations {
 
   /** Recorded when recomputing stats on the table. */
   case class ComputeStats(predicate: Seq[String]) extends Operation("COMPUTE STATS") {
-    override val parameters: Map[String, Any] = Map(
-      "predicate" -> JsonUtils.toJson(predicate))
+    override val parameters: Map[String, Any] = Map("predicate" -> JsonUtils.toJson(predicate))
   }
 
   /** Recorded when manually re-/un-/setting ZCube Information for existing files. */
   case class ResetZCubeInfo(predicate: Seq[String], zOrderBy: Seq[String])
-    extends Operation("RESET ZCUBE INFO") {
+      extends Operation("RESET ZCUBE INFO") {
 
-    override val parameters: Map[String, Any] = Map(
-      "predicate" -> JsonUtils.toJson(predicate),
-      "zOrderBy" -> JsonUtils.toJson(zOrderBy))
+    override val parameters: Map[String, Any] =
+      Map("predicate" -> JsonUtils.toJson(predicate), "zOrderBy" -> JsonUtils.toJson(zOrderBy))
   }
 
   case class UpdateSchema(oldSchema: StructType, newSchema: StructType)
       extends Operation("UPDATE SCHEMA") {
-    override val parameters: Map[String, Any] = Map(
-      "oldSchema" -> JsonUtils.toJson(oldSchema),
-      "newSchema" -> JsonUtils.toJson(newSchema))
+    override val parameters: Map[String, Any] =
+      Map("oldSchema" -> JsonUtils.toJson(oldSchema), "newSchema" -> JsonUtils.toJson(newSchema))
   }
-
 
   private def structFieldToMap(colPath: Seq[String], field: StructField): Map[String, Any] = {
     Map(
       "name" -> UnresolvedAttribute(colPath :+ field.name).name,
       "type" -> field.dataType.typeName,
       "nullable" -> field.nullable,
-      "metadata" -> JsonUtils.mapper.readValue[Map[String, Any]](field.metadata.json)
-    )
+      "metadata" -> JsonUtils.mapper.readValue[Map[String, Any]](field.metadata.json))
   }
 
   /**
@@ -258,7 +260,7 @@ object DeltaOperations {
    * the parser output classes in our logging.
    */
   case class QualifiedColTypeWithPositionForLog(
-     columnPath: Seq[String],
-     column: StructField,
-     colPosition: Option[String])
+      columnPath: Seq[String],
+      column: StructField,
+      colPosition: Option[String])
 }

@@ -43,7 +43,8 @@ case class UpdateCommand(
     target: LogicalPlan,
     updateExpressions: Seq[Expression],
     condition: Option[Expression])
-  extends RunnableCommand with DeltaCommand {
+    extends RunnableCommand
+    with DeltaCommand {
 
   override def innerChildren: Seq[QueryPlan[_]] = Seq(target)
 
@@ -62,7 +63,9 @@ case class UpdateCommand(
   }
 
   private def performUpdate(
-      sparkSession: SparkSession, deltaLog: DeltaLog, txn: OptimisticTransaction): Unit = {
+      sparkSession: SparkSession,
+      deltaLog: DeltaLog,
+      txn: OptimisticTransaction): Unit = {
     import sparkSession.implicits._
 
     var numTouchedFiles: Long = 0
@@ -76,7 +79,9 @@ case class UpdateCommand(
     val updateCondition = condition.getOrElse(Literal(true, BooleanType))
     val (metadataPredicates, dataPredicates) =
       DeltaTableUtils.splitMetadataAndDataPredicates(
-        updateCondition, txn.metadata.partitionColumns, sparkSession)
+        updateCondition,
+        txn.metadata.partitionColumns,
+        sparkSession)
     val candidateFiles = txn.filterFiles(metadataPredicates ++ dataPredicates)
     val nameToAddFile = generateCandidateFileMap(deltaLog.dataPath, candidateFiles)
 
@@ -95,8 +100,13 @@ case class UpdateCommand(
       val operationTimestamp = System.currentTimeMillis()
       val deleteActions = candidateFiles.map(_.removeWithTimestamp(operationTimestamp))
 
-      val rewrittenFiles = rewriteFiles(sparkSession, txn, tahoeFileIndex.path,
-        filesToRewrite, nameToAddFile, updateCondition)
+      val rewrittenFiles = rewriteFiles(
+        sparkSession,
+        txn,
+        tahoeFileIndex.path,
+        filesToRewrite,
+        nameToAddFile,
+        updateCondition)
 
       numRewrittenFiles = rewrittenFiles.size
       rewriteTimeMs = (System.nanoTime() - startTime) / 1000 / 1000 - scanTimeMs
@@ -105,15 +115,24 @@ case class UpdateCommand(
     } else {
       // Case 3: Find all the affected files using the user-specified condition
       val fileIndex = new TahoeBatchFileIndex(
-        sparkSession, "update", candidateFiles, deltaLog, tahoeFileIndex.path, txn.snapshot)
+        sparkSession,
+        "update",
+        candidateFiles,
+        deltaLog,
+        tahoeFileIndex.path,
+        txn.snapshot)
       // Keep everything from the resolved target except a new TahoeFileIndex
       // that only involves the affected files instead of all files.
       val newTarget = DeltaTableUtils.replaceFileIndex(target, fileIndex)
       val data = Dataset.ofRows(sparkSession, newTarget)
       val filesToRewrite =
         withStatusCode("DELTA", s"Finding files to rewrite for UPDATE operation") {
-          data.filter(new Column(updateCondition)).select(input_file_name())
-            .distinct().as[String].collect()
+          data
+            .filter(new Column(updateCondition))
+            .select(input_file_name())
+            .distinct()
+            .as[String]
+            .collect()
         }
 
       scanTimeMs = (System.nanoTime() - startTime) / 1000 / 1000
@@ -130,8 +149,13 @@ case class UpdateCommand(
           removeFilesFromPaths(deltaLog, nameToAddFile, filesToRewrite, operationTimestamp)
         val rewrittenFiles =
           withStatusCode("DELTA", s"Rewriting ${filesToRewrite.size} files for UPDATE operation") {
-            rewriteFiles(sparkSession, txn, tahoeFileIndex.path,
-              filesToRewrite, nameToAddFile, updateCondition)
+            rewriteFiles(
+              sparkSession,
+              txn,
+              tahoeFileIndex.path,
+              filesToRewrite,
+              nameToAddFile,
+              updateCondition)
           }
 
         numRewrittenFiles = rewrittenFiles.size
@@ -154,8 +178,7 @@ case class UpdateCommand(
         numTouchedFiles,
         numRewrittenFiles,
         scanTimeMs,
-        rewriteTimeMs)
-    )
+        rewriteTimeMs))
   }
 
   /**
@@ -169,8 +192,8 @@ case class UpdateCommand(
       nameToAddFileMap: Map[String, AddFile],
       condition: Expression): Seq[AddFile] = {
     // Containing the map from the relative file path to AddFile
-    val baseRelation = buildBaseRelation(
-      spark, txn, "update", rootPath, inputLeafFiles, nameToAddFileMap)
+    val baseRelation =
+      buildBaseRelation(spark, txn, "update", rootPath, inputLeafFiles, nameToAddFileMap)
     val newTarget = DeltaTableUtils.replaceFileIndex(target, baseRelation.location)
     val targetDf = Dataset.ofRows(spark, newTarget)
     val updatedDataFrame = {
@@ -186,9 +209,10 @@ case class UpdateCommand(
    * the corresponding UPDATE EXPRESSION; otherwise, keep the original column value
    */
   private def buildUpdatedColumns(condition: Expression): Seq[Column] = {
-    updateExpressions.zip(target.output).map { case (update, original) =>
-      val updated = If(condition, update, original)
-      new Column(Alias(updated, original.name)())
+    updateExpressions.zip(target.output).map {
+      case (update, original) =>
+        val updated = If(condition, update, original)
+        new Column(Alias(updated, original.name)())
     }
   }
 }

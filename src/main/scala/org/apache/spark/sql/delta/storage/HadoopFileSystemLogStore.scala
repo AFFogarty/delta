@@ -33,9 +33,8 @@ import org.apache.spark.sql.SparkSession
 /**
  * Default implementation of [[LogStore]] for Hadoop [[FileSystem]] implementations.
  */
-abstract class HadoopFileSystemLogStore(
-    sparkConf: SparkConf,
-    hadoopConf: Configuration) extends LogStore {
+abstract class HadoopFileSystemLogStore(sparkConf: SparkConf, hadoopConf: Configuration)
+    extends LogStore {
 
   def this(sc: SparkContext) = this(sc.getConf, sc.hadoopConfiguration)
 
@@ -74,7 +73,9 @@ abstract class HadoopFileSystemLogStore(
    * renames, e.g., Azure is OK but HDFS is not.
    */
   protected def writeWithRename(
-      path: Path, actions: Iterator[String], overwrite: Boolean = false): Unit = {
+      path: Path,
+      actions: Iterator[String],
+      overwrite: Boolean = false): Unit = {
     val fs = path.getFileSystem(getHadoopConfiguration)
 
     if (!fs.exists(path.getParent)) {

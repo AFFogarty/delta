@@ -36,6 +36,7 @@ trait StateCache {
 
   /** If state RDDs for this snapshot should still be cached. */
   private var isCached = true
+
   /** A list of RDDs that we need to uncache when we are done with this snapshot. */
   private val cached = ArrayBuffer[RDD[_]]()
 
@@ -49,12 +50,9 @@ trait StateCache {
         rdd.setName(name)
         rdd.persist(StorageLevel.MEMORY_AND_DISK_SER)
         cached += rdd
-        val cachedDs = Dataset.ofRows(
-          spark,
-          LogicalRDD(
-            ds.queryExecution.analyzed.output,
-            rdd)(
-            spark)).as[A](ds.exprEnc)
+        val cachedDs = Dataset
+          .ofRows(spark, LogicalRDD(ds.queryExecution.analyzed.output, rdd)(spark))
+          .as[A](ds.exprEnc)
 
         (Some(rdd), Some(cachedDs))
       } else {
@@ -81,18 +79,12 @@ trait StateCache {
         if (dsCache.exists(_.sparkSession eq spark)) {
           dsCache.get
         } else {
-          Dataset.ofRows(
-            spark,
-            LogicalRDD(
-              ds.queryExecution.analyzed.output,
-              rddCache.get)(
-              spark)).as[A](ds.exprEnc)
+          Dataset
+            .ofRows(spark, LogicalRDD(ds.queryExecution.analyzed.output, rddCache.get)(spark))
+            .as[A](ds.exprEnc)
         }
       } else {
-        Dataset.ofRows(
-          spark,
-          ds.queryExecution.logical
-        ).as[A](ds.exprEnc)
+        Dataset.ofRows(spark, ds.queryExecution.logical).as[A](ds.exprEnc)
       }
     }
   }

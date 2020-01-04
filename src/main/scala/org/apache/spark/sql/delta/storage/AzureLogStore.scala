@@ -35,7 +35,7 @@ import org.apache.spark.SparkConf
  *   visible and therefore the caller must handle partial files.
  */
 class AzureLogStore(sparkConf: SparkConf, hadoopConf: Configuration)
-  extends HadoopFileSystemLogStore(sparkConf, hadoopConf) {
+    extends HadoopFileSystemLogStore(sparkConf, hadoopConf) {
   override def write(path: Path, actions: Iterator[String], overwrite: Boolean = false): Unit = {
     writeWithRename(path, actions, overwrite)
   }

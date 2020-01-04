@@ -91,7 +91,9 @@ class HDFSLogStore(sparkConf: SparkConf, defaultHadoopConf: Configuration) exten
     var streamClosed = false // This flag is to avoid double close
     var renameDone = false // This flag is to save the delete operation in most of cases.
     val stream = fc.create(
-      tempPath, EnumSet.of(CREATE), CreateOpts.checksumParam(ChecksumOpt.createDisabled()))
+      tempPath,
+      EnumSet.of(CREATE),
+      CreateOpts.checksumParam(ChecksumOpt.createDisabled()))
 
     try {
       actions.map(_ + "\n").map(_.getBytes(UTF_8)).foreach(stream.write)

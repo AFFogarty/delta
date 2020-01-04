@@ -28,7 +28,9 @@ import org.apache.spark.sql.catalyst.TableIdentifier
 case class DeltaTableIdentifier(
     path: Option[String] = None,
     table: Option[TableIdentifier] = None) {
-  assert(path.isDefined ^ table.isDefined, "Please provide one of the path or the table identifier")
+  assert(
+    path.isDefined ^ table.isDefined,
+    "Please provide one of the path or the table identifier")
 
   val identifier: String = path.getOrElse(table.get.identifier)
 
@@ -78,8 +80,8 @@ object DeltaTableIdentifier {
     def tableExists = catalog.tableExists(identifier)
 
     DeltaSourceUtils.isDeltaTable(identifier.database) &&
-      !tableIsTemporaryTable &&
-      (!databaseExists || !tableExists)
+    !tableIsTemporaryTable &&
+    (!databaseExists || !tableExists)
   }
 
   /**

@@ -45,9 +45,8 @@ import org.apache.spark.SparkConf
  * Regarding directory listing, this implementation:
  * - returns a list by merging the files listed from S3 and recently-written files from the cache.
  */
-class S3SingleDriverLogStore(
-    sparkConf: SparkConf,
-    hadoopConf: Configuration) extends HadoopFileSystemLogStore(sparkConf, hadoopConf) {
+class S3SingleDriverLogStore(sparkConf: SparkConf, hadoopConf: Configuration)
+    extends HadoopFileSystemLogStore(sparkConf, hadoopConf) {
   import S3SingleDriverLogStore._
 
   private def resolved(path: Path): (FileSystem, Path) = {
@@ -81,9 +80,9 @@ class S3SingleDriverLogStore(
   private def mergeFileIterators(
       iter: Iterator[FileStatus],
       iterWithPrecedence: Iterator[FileStatus]): Iterator[FileStatus] = {
-    (iter.map(f => (f.getPath, f)).toMap ++ iterWithPrecedence.map(f => (f.getPath, f)))
-      .values
-      .toSeq
+    (iter
+      .map(f => (f.getPath, f))
+      .toMap ++ iterWithPrecedence.map(f => (f.getPath, f))).values.toSeq
       .sortBy(_.getPath.getName)
       .iterator
   }
@@ -97,16 +96,19 @@ class S3SingleDriverLogStore(
       .asMap()
       .asScala
       .iterator
-      .filter { case (path, _) =>
-        path.getParent == pathKey.getParent() && path.getName >= pathKey.getName }
-      .map { case (path, fileMetadata) =>
-        new FileStatus(
-          fileMetadata.length,
-          false,
-          1,
-          fs.getDefaultBlockSize(path),
-          fileMetadata.modificationTime,
-          path)
+      .filter {
+        case (path, _) =>
+          path.getParent == pathKey.getParent() && path.getName >= pathKey.getName
+      }
+      .map {
+        case (path, fileMetadata) =>
+          new FileStatus(
+            fileMetadata.length,
+            false,
+            1,
+            fs.getDefaultBlockSize(path),
+            fileMetadata.modificationTime,
+            path)
       }
   }
 
@@ -182,12 +184,13 @@ class S3SingleDriverLogStore(
       }
 
       // Cache the information of written files to help fix the inconsistency in future listings
-      writtenPathCache.put(lockedPath,
+      writtenPathCache.put(
+        lockedPath,
         FileMetadata(countingStream.getCount(), System.currentTimeMillis()))
     } catch {
       // Convert Hadoop's FileAlreadyExistsException to Java's FileAlreadyExistsException
       case e: org.apache.hadoop.fs.FileAlreadyExistsException =>
-          throw new java.nio.file.FileAlreadyExistsException(e.getMessage)
+        throw new java.nio.file.FileAlreadyExistsException(e.getMessage)
     } finally {
       releasePathLock(lockedPath)
     }
@@ -201,6 +204,7 @@ class S3SingleDriverLogStore(
 }
 
 object S3SingleDriverLogStore {
+
   /**
    * A global path lock to ensure that no concurrent writers writing to the same path in the same
    * JVM.
@@ -213,7 +217,8 @@ object S3SingleDriverLogStore {
    * to fix the inconsistent file listing.
    */
   private val writtenPathCache =
-    CacheBuilder.newBuilder()
+    CacheBuilder
+      .newBuilder()
       .expireAfterAccess(120, TimeUnit.MINUTES)
       .build[Path, FileMetadata]()
 

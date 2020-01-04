@@ -32,10 +32,15 @@ case class PreprocessTableUpdate(conf: SQLConf) extends UpdateExpressionsSupport
     }
 
     val targetColNameParts =
-      update.updateColumns.map{col => new UnresolvedAttribute(col.name.split("\\.")).nameParts}
+      update.updateColumns.map { col =>
+        new UnresolvedAttribute(col.name.split("\\.")).nameParts
+      }
 
     val alignedUpdateExprs = generateUpdateExpressions(
-      update.child.output, targetColNameParts, update.updateExpressions, conf.resolver)
+      update.child.output,
+      targetColNameParts,
+      update.updateExpressions,
+      conf.resolver)
     UpdateCommand(index, update.child, alignedUpdateExprs, update.condition)
   }
 }
