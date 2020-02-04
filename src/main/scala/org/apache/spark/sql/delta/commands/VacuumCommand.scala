@@ -23,14 +23,13 @@ import java.util.concurrent.TimeUnit
 
 import scala.collection.JavaConverters._
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.delta._
 import org.apache.spark.sql.delta.actions.{FileAction, RemoveFile}
 import org.apache.spark.sql.delta.sources.DeltaSQLConf
 import org.apache.spark.sql.delta.util.DeltaFileOperations
 import org.apache.spark.sql.delta.util.DeltaFileOperations.tryDeleteNonRecursive
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import org.apache.hadoop.fs.{FileSystem, Path}
-
 import org.apache.spark.sql.{DataFrame, Dataset, SparkSession}
 import org.apache.spark.util.{Clock, SerializableConfiguration, SystemClock}
 
@@ -50,17 +49,18 @@ object VacuumCommand extends VacuumCommandImpl {
    */
   protected def checkRetentionPeriodSafety(
       spark: SparkSession,
-      retentionMs: Option[Long],
+      retentionMs: Long,
       configuredRetention: Long): Unit = {
-    require(retentionMs.forall(_ >= 0), "Retention for Vacuum can't be less than 0.")
+    require(retentionMs >= 0, "Retention for Vacuum can't be less than 0.")
     val checkEnabled =
       spark.sessionState.conf.getConf(DeltaSQLConf.DELTA_VACUUM_RETENTION_CHECK_ENABLED)
-    val retentionSafe = retentionMs.forall(_ >= configuredRetention)
+    val retentionSafe = retentionMs >= configuredRetention
     var configuredRetentionHours = TimeUnit.MILLISECONDS.toHours(configuredRetention)
     if (TimeUnit.HOURS.toMillis(configuredRetentionHours) < configuredRetention) {
       configuredRetentionHours += 1
     }
-    require(!checkEnabled || retentionSafe,
+    require(
+      !checkEnabled || retentionSafe,
       s"""Are you sure you would like to vacuum files with such a low retention period? If you have
         |writers that are currently writing to this table, there is a risk that you may corrupt the
         |state of your Delta table.
@@ -105,19 +105,27 @@ object VacuumCommand extends VacuumCommandImpl {
 
       val snapshot = deltaLog.update()
 
-      require(snapshot.version >= 0, "No state defined for this table. Is this really " +
-        "a Delta table? Refusing to garbage collect.")
+      require(
+        snapshot.version >= 0,
+        "No state defined for this table. Is this really " +
+          "a Delta table? Refusing to garbage collect.")
 
-      val retentionMillis = retentionHours.map(h => TimeUnit.HOURS.toMillis(math.round(h)))
-      checkRetentionPeriodSafety(spark, retentionMillis, deltaLog.tombstoneRetentionMillis)
+      val retentionMillis: Option[Long] = retentionHours match {
+        case Some(h) =>
+          val ms = TimeUnit.HOURS.toMillis(math.round(h))
+          checkRetentionPeriodSafety(spark, ms, deltaLog.tombstoneRetentionMillis)
+          Option(ms)
+      }
+      val deleteBeforeTimestamp = retentionMillis match {
+        case Some(ms) => clock.getTimeMillis() - ms
+        case None => deltaLog.minFileRetentionTimestamp
+      }
 
-      val deleteBeforeTimestamp = retentionMillis.map { millis =>
-        clock.getTimeMillis() - millis
-      }.getOrElse(deltaLog.minFileRetentionTimestamp)
-      logInfo(s"Starting garbage collection (dryRun = $dryRun) of untracked files older than " +
-        s"${new Date(deleteBeforeTimestamp).toGMTString} in $path")
-      val hadoopConf = spark.sparkContext.broadcast(
-        new SerializableConfiguration(sessionHadoopConf))
+      logInfo(
+        s"Starting garbage collection (dryRun = $dryRun) of untracked files older than " +
+          s"${new Date(deleteBeforeTimestamp).toGMTString} in $path")
+      val hadoopConf =
+        spark.sparkContext.broadcast(new SerializableConfiguration(sessionHadoopConf))
       val basePath = fs.makeQualified(path).toString
       var isBloomFiltered = false
 
@@ -153,7 +161,8 @@ object VacuumCommand extends VacuumCommandImpl {
               case _ => Nil
             }
           }
-        }.toDF("path")
+        }
+        .toDF("path")
 
       val partitionColumns = snapshot.metadata.partitionSchema.fieldNames
       val parallelism = spark.sessionState.conf.parallelPartitionDiscoveryParallelism
@@ -194,14 +203,16 @@ object VacuumCommand extends VacuumCommandImpl {
                   relativize(new Path(fileStatus.path), fs, reservoirBase, isDir = false))
               }
             }
-          }.groupBy($"value" as 'path)
+          }
+          .groupBy($"value" as 'path)
           .count()
           .join(validFiles, Seq("path"), "leftanti")
           .where('count === 1)
           .select('path)
           .as[String]
           .map { relativePath =>
-            assert(!stringToPath(relativePath).isAbsolute,
+            assert(
+              !stringToPath(relativePath).isAbsolute,
               "Shouldn't have any absolute paths for deletion here.")
             pathToString(DeltaFileOperations.absolutePath(basePath, relativePath))
           }
@@ -217,8 +228,9 @@ object VacuumCommand extends VacuumCommandImpl {
             objectsDeleted = numFiles)
 
           recordDeltaEvent(deltaLog, "delta.gc.stats", data = stats)
-          logConsole(s"Found $numFiles files and directories in a total of " +
-            s"$dirCounts directories that are safe to delete.")
+          logConsole(
+            s"Found $numFiles files and directories in a total of " +
+              s"$dirCounts directories that are safe to delete.")
 
           return diff.map(f => stringToPath(f).toString).toDF("path")
         }
@@ -234,8 +246,9 @@ object VacuumCommand extends VacuumCommandImpl {
           dirsPresentBeforeDelete = dirCounts,
           objectsDeleted = filesDeleted)
         recordDeltaEvent(deltaLog, "delta.gc.stats", data = stats)
-        logConsole(s"Deleted $filesDeleted files and directories in a total " +
-          s"of $dirCounts directories.")
+        logConsole(
+          s"Deleted $filesDeleted files and directories in a total " +
+            s"of $dirCounts directories.")
 
         spark.createDataset(Seq(basePath)).toDF("path")
       } finally {
